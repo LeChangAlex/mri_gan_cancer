@@ -33,6 +33,11 @@ from torch.utils.data import dataloader
 from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
 
+# Weights and biases logging
+import wandb
+wandb.init(project="mri_gan_cancer")
+
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
 n_gpu = 2
 device = torch.device('cuda:0')
@@ -60,12 +65,16 @@ n_sample = 600_000
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
-n_show_loss = 10
+n_show_loss = 1
+n_save_im = 50
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
 image_folder_path = './wbmri_slices_medium'
-save_folder_path = './g_z/08_22_2019/'
+save_im_path = './g_z/08_22_2019/'
+save_checkpoints_path = "./checkpoints"
+os.makedirs(save_im_path, exist_ok=True)
+os.makedirs(save_checkpoints_path, exist_ok=True)
 
 low_steps = [0, 1, 2]
 # style_mixing    += low_steps
@@ -106,8 +115,8 @@ def reset_LR(optimizer, lr):
 # Gain sample
 def gain_sample(batch_size, image_size=(25,8)):
     loader = DataLoader(MRIDataset(
-        csv_file="../annotations_slices_medium.csv",
-        root_dir="../wbmri_slices_medium",
+        csv_file="./annotations_slices_medium.csv",
+        root_dir="/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium",
         transform=transforms.Compose([transforms.Resize(image_size), transforms.ToTensor()])
     ), shuffle=True, batch_size=batch_size,
                         num_workers=num_workers.get(image_size, max_workers))
@@ -139,7 +148,7 @@ def imsave(tensor, i):
         # Add 0.5 after normalizing to [0, 255] to round to nearest integer
         ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
         img = Image.fromarray(ndarr)
-        img.save(f'{save_folder_path}sample-iter{i}.png')
+        img.save(f'{save_im_path}sample-iter{i}.png')
     except:
         print("Less than 6 images in the batch to plot.")
         grid = tensor[0][0]
@@ -147,7 +156,7 @@ def imsave(tensor, i):
         # Add 0.5 after normalizing to [0, 255] to round to nearest integer
         ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
         img = Image.fromarray(ndarr)
-        img.save(f'{save_folder_path}sample-iter{i}.png')
+        img.save(f'{save_im_path}sample-iter{i}.png')
         pass
 
 # Train function
@@ -252,8 +261,6 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         # D optimizer step
         d_optim.step()
 
-        # Avoid possible memory leak
-        del grad_penalty_real, grad_real, fake_predict, real_predict, fake_image, real_image, latent_w1
 
         # G module ---
         if iteration % DGR != 0: continue
@@ -274,12 +281,24 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_predict.item())
+            wandb.log({"D Loss": (real_predict + fake_predict).item(),
+                       "G Loss": fake_predict.item()})
+            # TODO: add other metrics to log (FID, ...)
+        if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
 
         # Avoid possible memory leak
-        del fake_predict, fake_image, latent_w2
+        # del fake_predict, fake_image, latent_w2
+        # del grad_penalty_real, grad_real, fake_predict, real_predict, fake_image, real_image, latent_w1
+        del grad_penalty_real, grad_real, fake_predict, real_predict, fake_image, real_image, latent_w1, latent_w2
+
+
+        # if iteration % 10:
+        #     # wandb.log({"Test Accuracy": correct / total, "Test Loss": loss})
+        #
 
         if iteration % 250 == 0:
+            os.makedirs("networks", exist_ok=True)
             # Save the model every 50 iterations
             torch.save({
                 'generator': generator.state_dict(),
@@ -289,8 +308,12 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
                 'parameters': (step, iteration, startpoint, used_sample, alpha),
                 'd_losses': d_losses,
                 'g_losses': g_losses
-            }, 'networks/trained_{}.pth'.format(iteration))
+            }, f'{save_checkpoints_path}/trained{iteration}.png')
             print(f'Model successfully saved.')
+
+
+
+
 
         progress_bar.set_description((
                                          f'Resolution: {resolution[0]}*{resolution[1]}  D_Loss: {d_losses[-1]:.4f}  G_Loss: {g_losses[-1]:.4f}  Alpha: {alpha:.4f}'))
@@ -309,6 +332,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 # Create models
 generator = StyleBased_Generator(n_fc, dim_latent, dim_input).to(device)
 discriminator = Discriminator().to(device)
+
+wandb.watch((generator, discriminator))
 
 # Optimizers
 g_optim = optim.Adam([{
