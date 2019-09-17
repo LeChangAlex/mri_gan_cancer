@@ -61,6 +61,7 @@ n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
 n_save_im = 50
+n_checkpoint = 30
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
@@ -282,12 +283,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         del grad_penalty_real, grad_real, fake_predict, real_predict, fake_image, real_image, latent_w1, latent_w2
 
 
-        # if iteration % 10:
-        #     # wandb.log({"Test Accuracy": correct / total, "Test Loss": loss})
-        #
-
-        if iteration % 250 == 0:
-            os.makedirs("networks", exist_ok=True)
+        if iteration % n_checkpoint == 0:
+            os.makedirs(save_checkpoints_path, exist_ok=True)
             # Save the model every 50 iterations
             torch.save({
                 'generator': generator.state_dict(),
@@ -297,26 +294,15 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
                 'parameters': (step, iteration, startpoint, used_sample, alpha),
                 'd_losses': d_losses,
                 'g_losses': g_losses
-            }, f'{save_checkpoints_path}/trained{iteration}.png')
-            print(f'Model successfully saved.')
+            }, f'{save_checkpoints_path}/trained-{iteration}.pth')
+            wandb.save(f'{save_checkpoints_path}/trained-{iteration}.pth')
+            print(f' Model successfully saved.')
 
 
+        progress_bar.set_description(
+            (f'Resolution: {resolution[0]}*{resolution[1]}  D_Loss: {d_losses[-1]:.4f}  G_Loss: {g_losses[-1]:.4f}  Alpha: {alpha:.4f}')
+        )
 
-
-
-        progress_bar.set_description((
-                                         f'Resolution: {resolution[0]}*{resolution[1]}  D_Loss: {d_losses[-1]:.4f}  G_Loss: {g_losses[-1]:.4f}  Alpha: {alpha:.4f}'))
-    torch.save({
-        'generator': generator.state_dict(),
-        'discriminator': discriminator.state_dict(),
-        'g_optim': g_optim.state_dict(),
-        'd_optim': d_optim.state_dict(),
-        'parameters': (step, iteration, startpoint, used_sample, alpha),
-        'd_losses': d_losses,
-        'g_losses': g_losses
-    }, 'networks/trained.pth')
-    print(f'Final model successfully saved.')
-    return d_losses, g_losses
 
 # Create models
 generator = StyleBased_Generator(n_fc, dim_latent, dim_input).to(device)
@@ -357,5 +343,6 @@ if is_continue:
 
 generator.train()
 discriminator.train()
-d_losses, g_losses = train(generator, discriminator, g_optim, d_optim, step, iteration, startpoint,
+
+train(generator, discriminator, g_optim, d_optim, step, iteration, startpoint,
                            used_sample, d_losses, g_losses, alpha)
