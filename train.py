@@ -35,32 +35,26 @@ from multiprocessing.reduction import ForkingPickler
 
 # Weights and biases logging
 import wandb
-wandb.init(project="mri_gan_cancer")
+import argparse
+import json
 
-
-os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
-n_gpu = 2
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+n_gpu = 1
 device = torch.device('cuda:0')
 
 # Original Learning Rate
 learning_rate = {(100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
-# For anime only
-# learning_rate     = {512: 0.0015, 1024: 0.002}
 batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 mini_batch_size = 8
-batch_size_1gpu = {4: 256, 8: 256, 16: 128, 32: 64, 64: 32, 128: 16}
-mini_batch_size = 8
-batch_size_4gpus = {4: 512, 8: 256, 16: 128, 32: 64, 64: 32}
-mini_batch_size_4 = 16
-batch_size_8gpus = {4: 512, 8: 256, 16: 128, 32: 64}
-mini_batch_size_8 = 32
-# Comment line below if you don't meet the problem of 'shared memory conflict'
+batch_size_4gpus = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 16, (800, 256): 16}
+
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
 max_workers = 16
+
 n_fc = 8
 dim_latent = 512
 dim_input = (25, 8)
-# number of samples to show before dowbling resolution
+# number of samples to show before doubling resolution
 n_sample = 600_000
 # number of samples train model in total
 n_sample_total = 10_000_000
@@ -70,18 +64,34 @@ n_save_im = 50
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
-image_folder_path = './wbmri_slices_medium'
+data_path = "/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium"
 save_im_path = './g_z/08_22_2019/'
 save_checkpoints_path = "./checkpoints"
-os.makedirs(save_im_path, exist_ok=True)
-os.makedirs(save_checkpoints_path, exist_ok=True)
 
-low_steps = [0, 1, 2]
-# style_mixing    += low_steps
-mid_steps = [3, 4, 5]
-# style_mixing    += mid_steps
-hig_steps = [6, 7, 8]
-# style_mixing    += hig_steps
+
+wandb.init(project="mri_gan_cancer")
+wandb.config.epochs = 4  # config variables are saved to the cloud
+#
+parser = argparse.ArgumentParser()
+parser.add_argument('--batch-size', type=str, default=str(batch_size), metavar='N',
+                     help='')
+parser.add_argument('--lr', type=str, default=str(learning_rate), metavar='N',
+                     help='')
+parser.add_argument('--data_path', type=str, default=data_path, metavar='N',
+                     help='')
+parser.add_argument('--g_z_path', type=str, default=save_im_path, metavar='N',
+                     help='')
+parser.add_argument('--checkpoints_path', type=str, default=save_checkpoints_path, metavar='N',
+                     help='')
+
+args = parser.parse_args()
+wandb.config.update(args) # adds all of the arguments as config variables
+
+
+os.makedirs(args.g_z_path, exist_ok=True)
+os.makedirs(args.checkpoints_path, exist_ok=True)
+
+
 
 # Used to continue training from last checkpoint
 iteration = 0
@@ -95,6 +105,7 @@ alpha = 0
 is_continue = True
 d_losses = [float('inf')]
 g_losses = [float('inf')]
+
 
 
 
@@ -116,7 +127,7 @@ def reset_LR(optimizer, lr):
 def gain_sample(batch_size, image_size=(25,8)):
     loader = DataLoader(MRIDataset(
         csv_file="./annotations_slices_medium.csv",
-        root_dir="/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium",
+        root_dir=args.data_path,
         transform=transforms.Compose([transforms.Resize(image_size), transforms.ToTensor()])
     ), shuffle=True, batch_size=batch_size,
                         num_workers=num_workers.get(image_size, max_workers))
@@ -125,39 +136,8 @@ def gain_sample(batch_size, image_size=(25,8)):
 
 f = plt.figure()
 def imsave(tensor, i):
-    try:
-        f.add_subplot(1, 6, 1)
-        plt.imshow(tensor[0][0])
-        f.add_subplot(1, 6, 2)
-        plt.imshow(tensor[1][0])
-        f.add_subplot(1, 6, 3)
-        plt.imshow(tensor[2][0])
-        f.add_subplot(1, 6, 4)
-        plt.imshow(tensor[3][0])
-        f.add_subplot(1, 6, 5)
-        plt.imshow(tensor[4][0])
-        f.add_subplot(1, 6, 6)
-        plt.imshow(tensor[5][0])
-        grid = tensor[0][0]
-        plt.show(block=False)
-        # plt.imshow(grid, cmap="gray", vmin=0, vmax=1)
-        # plt.imshow()
-        plt.pause(0.001)
-        plt.clf()
-        grid.clamp_(-1, 1).add_(1).div_(2)
-        # Add 0.5 after normalizing to [0, 255] to round to nearest integer
-        ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
-        img = Image.fromarray(ndarr)
-        img.save(f'{save_im_path}sample-iter{i}.png')
-    except:
-        print("Less than 6 images in the batch to plot.")
-        grid = tensor[0][0]
-        grid.clamp_(-1, 1).add_(1).div_(2)
-        # Add 0.5 after normalizing to [0, 255] to round to nearest integer
-        ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
-        img = Image.fromarray(ndarr)
-        img.save(f'{save_im_path}sample-iter{i}.png')
-        pass
+    wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]})
+
 
 # Train function
 def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpoint=0, used_sample=0,
@@ -187,7 +167,10 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             del data_loader
 
             # Change batch size
-            origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
+            if n_gpu == 4:
+                origin_loader = gain_sample(batch_size_4gpus.get(resolution, mini_batch_size), resolution)
+            else:
+                origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
             data_loader = iter(origin_loader)
 
             reset_LR(g_optim, learning_rate.get(resolution, 0.001))
@@ -283,9 +266,15 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             g_losses.append(fake_predict.item())
             wandb.log({"D Loss": (real_predict + fake_predict).item(),
                        "G Loss": fake_predict.item()})
+
+
             # TODO: add other metrics to log (FID, ...)
+
+
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
+
+
 
         # Avoid possible memory leak
         # del fake_predict, fake_image, latent_w2
