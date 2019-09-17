@@ -44,9 +44,11 @@ device = torch.device('cuda:0')
 
 # Original Learning Rate
 learning_rate = {(100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
-batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
+if n_gpu == 1:
+    batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
+elif n_gpu == 4:
+    batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 16, (800, 256): 16}
 mini_batch_size = 8
-batch_size_4gpus = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 16, (800, 256): 16}
 
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
 max_workers = 16
@@ -61,7 +63,7 @@ n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
 n_save_im = 50
-n_checkpoint = 30
+n_checkpoint = 2000
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
@@ -71,8 +73,7 @@ save_checkpoints_path = "./checkpoints"
 
 
 wandb.init(project="mri_gan_cancer")
-wandb.config.epochs = 4  # config variables are saved to the cloud
-#
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=str, default=str(batch_size), metavar='N',
                      help='')
@@ -168,10 +169,9 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             del data_loader
 
             # Change batch size
-            if n_gpu == 4:
-                origin_loader = gain_sample(batch_size_4gpus.get(resolution, mini_batch_size), resolution)
-            else:
-                origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
+
+            origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
+
             data_loader = iter(origin_loader)
 
             reset_LR(g_optim, learning_rate.get(resolution, 0.001))
