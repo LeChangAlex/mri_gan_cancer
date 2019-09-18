@@ -440,7 +440,7 @@ class Discriminator(nn.Module):
             ConvBlock(512, 512, 3, 1),
             ConvBlock(512, 512, 3, 1),
             ConvBlock(512, 512, 3, 1),
-            ConvBlock(513, 512, 3, 1, (25, 8), 0)
+            ConvBlock(512, 512, 3, 1, (25, 8), 0)
         ])
         self.fc = SLinear(512, 1)
 
@@ -458,17 +458,17 @@ class Discriminator(nn.Module):
             if i == step:
                 result = self.from_rgbs[layer_index](image)
 
-            # Before final layer, do minibatch stddev
-            if i == 0:
-                # In dim: [batch, channel(512), 4, 4]
-                res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
-                # Out dim: [channel(512), 4, 4]
-                res_std = torch.sqrt(res_var)
-                # Out dim: [channel(512), 4, 4]
-                mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
-                # Out dim: [1] -> [batch, 1, 4, 4]
-                result = torch.cat([result, mean_std], 1)
-                # Out dim: [batch, 512 + 1, 4, 4]
+            # # Before final layer, do minibatch stddev
+            # if i == 0:
+            #     # In dim: [batch, channel(512), 4, 4]
+            #     res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+            #     # Out dim: [channel(512), 4, 4]
+            #     res_std = torch.sqrt(res_var)
+            #     # Out dim: [channel(512), 4, 4]
+            #     mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+            #     # Out dim: [1] -> [batch, 1, 4, 4]
+            #     result = torch.cat([result, mean_std], 1)
+            #     # Out dim: [batch, 512 + 1, 4, 4]
 
             # Conv
             result = self.convs[layer_index](result)
@@ -491,4 +491,5 @@ class Discriminator(nn.Module):
         # could process it.
         result = result.squeeze(2).squeeze(2)
         result = self.fc(result)
+        result = torch.sigmoid(result).squeeze(1)
         return result
