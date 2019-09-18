@@ -212,7 +212,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             real_predict = discriminator(real_image, step, alpha)
 
         # real_target = torch.ones_like(real_predict, requires_grad=False).to(device)
-        real_loss = torch.log(1 - real_predict).mean()
+        real_loss = -torch.log(real_predict).mean()
 
         # real_predict = nn.functional.softplus(-real_predict).mean()
         real_loss.backward(retain_graph=True)
@@ -245,14 +245,14 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_image = generator(latent_w1, step, alpha, noise_1, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
 
-        fake_target = torch.zeros_like(fake_predict, requires_grad=False).to(device)
-        fake_loss = torch.log(fake_predict).mean()
+        # fake_target = torch.zeros_like(fake_predict, requires_grad=False).to(device)
+        fake_loss = -torch.log(1 - fake_predict).mean()
 
         # fake_predict = nn.functional.softplus(fake_predict).mean()
         fake_loss.backward()
 
-        # if iteration % n_show_loss == 0:
-        #     d_losses.append((real_predict + fake_predict).item())
+        if iteration % n_show_loss == 0:
+            d_losses.append((real_loss + fake_loss).item())
 
         # D optimizer step
         d_optim.step()
@@ -275,13 +275,13 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_predict = discriminator(fake_image, step, alpha)
         # objectve is real targets (1 is realness metric)
         # real_target = torch.ones_like(fake_predict, requires_grad=False).to(device)
-        fake_loss = torch.log(1 - fake_predict).mean()
+        fake_loss = -torch.log(fake_predict).mean()
         # fake_predict = nn.functional.softplus(-fake_predict).mean()
         fake_loss.backward()
         g_optim.step()
 
         if iteration % n_show_loss == 0:
-            # g_losses.append(fake_predict.item())
+            g_losses.append(fake_loss.item())
             wandb.log({"D Loss": (real_loss + fake_loss).item(),
                        "G Loss": fake_loss.item()})
 
