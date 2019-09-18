@@ -38,8 +38,12 @@ import wandb
 import argparse
 import json
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 n_gpu = 1
+if n_gpu == 1:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+if n_gpu == 4:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
+
 device = torch.device('cuda:0')
 
 # Original Learning Rate
@@ -179,7 +183,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         try:
             # Try to read next image
-            real_image= next(data_loader)
+            real_image = next(data_loader)
 
         except (OSError, StopIteration):
             # Dataset exhausted, train from the first image
@@ -206,20 +210,24 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             real_predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha), range(n_gpu))
         else:
             real_predict = discriminator(real_image, step, alpha)
-        real_predict = nn.functional.softplus(-real_predict).mean()
-        real_predict.backward(retain_graph=True)
 
-        grad_real = torch.autograd.grad(outputs=real_predict.sum(), inputs=real_image, create_graph=True)[0]
+        # real_target = torch.ones_like(real_predict, requires_grad=False).to(device)
+        real_loss = torch.log(1 - real_predict).mean()
+
+        # real_predict = nn.functional.softplus(-real_predict).mean()
+        real_loss.backward(retain_graph=True)
+
+        grad_real = torch.autograd.grad(outputs=real_loss.sum(), inputs=real_image, create_graph=True)[0]
         grad_penalty_real = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
         grad_penalty_real = 10 / 2 * grad_penalty_real
         grad_penalty_real.backward()
+
 
         # Generate latent code
         latent_w1 = [torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device),
                      torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device)]
         latent_w2 = [torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device),
                      torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device)]
-
         noise_1 = []
         noise_2 = []
         for m in range(step + 1):
@@ -227,6 +235,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             size_y = 8 * 2 ** m
             noise_1.append(torch.randn((batch_size.get(resolution, mini_batch_size), 1, size_x, size_y), device=device))
             noise_2.append(torch.randn((batch_size.get(resolution, mini_batch_size), 1, size_x, size_y), device=device))
+
 
         # Generate fake image & backward
         if n_gpu > 1:
@@ -236,17 +245,22 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_image = generator(latent_w1, step, alpha, noise_1, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
 
-        fake_predict = nn.functional.softplus(fake_predict).mean()
-        fake_predict.backward()
+        fake_target = torch.zeros_like(fake_predict, requires_grad=False).to(device)
+        fake_loss = torch.log(fake_predict).mean()
 
-        if iteration % n_show_loss == 0:
-            d_losses.append((real_predict + fake_predict).item())
+        # fake_predict = nn.functional.softplus(fake_predict).mean()
+        fake_loss.backward()
+
+        # if iteration % n_show_loss == 0:
+        #     d_losses.append((real_predict + fake_predict).item())
 
         # D optimizer step
         d_optim.step()
 
+        del fake_predict, fake_loss
 
-        # G module ---
+
+        # --- G module ---
         if iteration % DGR != 0: continue
         # Due to DGR, train generator
         generator.zero_grad()
@@ -259,14 +273,17 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         else:
             fake_image = generator(latent_w2, step, alpha, noise_2, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
-        fake_predict = nn.functional.softplus(-fake_predict).mean()
-        fake_predict.backward()
+        # objectve is real targets (1 is realness metric)
+        # real_target = torch.ones_like(fake_predict, requires_grad=False).to(device)
+        fake_loss = torch.log(1 - fake_predict).mean()
+        # fake_predict = nn.functional.softplus(-fake_predict).mean()
+        fake_loss.backward()
         g_optim.step()
 
         if iteration % n_show_loss == 0:
-            g_losses.append(fake_predict.item())
-            wandb.log({"D Loss": (real_predict + fake_predict).item(),
-                       "G Loss": fake_predict.item()})
+            # g_losses.append(fake_predict.item())
+            wandb.log({"D Loss": (real_loss + fake_loss).item(),
+                       "G Loss": fake_loss.item()})
 
 
             # TODO: add other metrics to log (FID, ...)
@@ -274,7 +291,6 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
-
 
 
         # Avoid possible memory leak
