@@ -256,8 +256,6 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_show_loss == 0:
             d_losses.append((real_loss + fake_loss).item())
-            wandb.log({"D Loss": (real_loss + fake_loss).item()})
-            # TODO: add other metrics to log (FID, ...)
 
         # D optimizer step
         d_optim.step()
@@ -289,7 +287,10 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
-            wandb.log({"G Loss": fake_loss.item()})
+            wandb.log({"G Loss": g_losses[-1],
+                       "D Loss": d_losses[-1]
+                       })
+            # TODO: add other metrics to log (FID, ...)
 
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
