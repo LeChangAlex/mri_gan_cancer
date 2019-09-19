@@ -491,5 +491,4 @@ class Discriminator(nn.Module):
         # could process it.
         result = result.squeeze(2).squeeze(2)
         result = self.fc(result)
-        result = torch.sigmoid(result).squeeze(1)
         return result

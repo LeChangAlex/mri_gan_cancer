@@ -147,7 +147,10 @@ def imsave(tensor, i):
 
 # Train function
 def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpoint=0, used_sample=0,
-          d_losses=[], g_losses=[], alpha=0):
+          d_losses=[], g_losses=[], alpha=0, criterion=nn.BCELoss()):
+
+
+
     resolution = (25 * 2 ** step, 8 * 2 ** step)
 
     origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
@@ -212,9 +215,10 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             real_predict = discriminator(real_image, step, alpha)
 
         # real_target = torch.ones_like(real_predict, requires_grad=False).to(device)
-        real_loss = -torch.log(real_predict).mean()
+        # real_loss = -torch.log(real_predict).mean()
+        # real_loss = criterion(real_predict, torch.ones_like(real_predict))
 
-        # real_predict = nn.functional.softplus(-real_predict).mean()
+        real_loss = nn.functional.softplus(-real_predict).mean()
         real_loss.backward(retain_graph=True)
 
         grad_real = torch.autograd.grad(outputs=real_loss.sum(), inputs=real_image, create_graph=True)[0]
@@ -245,9 +249,9 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_image = generator(latent_w1, step, alpha, noise_1, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
 
-        fake_loss = -torch.log(1 - fake_predict).mean()
-
-        # fake_predict = nn.functional.softplus(fake_predict).mean()
+        # fake_loss = -torch.log(1 - fake_predict).mean()
+        # fake_loss = criterion(fake_predict, zeros_like(fake_predict))
+        fake_loss = nn.functional.softplus(fake_predict).mean()
         fake_loss.backward()
 
         if iteration % n_show_loss == 0:
@@ -277,9 +281,9 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_image = generator(latent_w2, step, alpha, noise_2, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
         # objectve is real targets (1 is realness metric)
-        # real_target = torch.ones_like(fake_predict, requires_grad=False).to(device)
-        fake_loss = -torch.log(fake_predict).mean()
-        # fake_predict = nn.functional.softplus(-fake_predict).mean()
+        # fake_loss = -torch.log(fake_predict).mean()
+        # fake_loss = criterion(fake_predict, ones_like(fake_predict))
+        fake_loss = nn.functional.softplus(-fake_predict).mean()
         fake_loss.backward()
         g_optim.step()
 
