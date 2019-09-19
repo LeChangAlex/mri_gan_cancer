@@ -47,7 +47,7 @@ if n_gpu == 4:
 device = torch.device('cuda:0')
 
 # Original Learning Rate
-learning_rate = {(100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
+learning_rate = {(50, 16): 0.001, (100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
 if n_gpu == 1:
     batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
@@ -67,7 +67,7 @@ n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
 n_save_im = 50
-n_checkpoint = 2000
+n_checkpoint = 1600
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
@@ -245,7 +245,6 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             fake_image = generator(latent_w1, step, alpha, noise_1, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
 
-        # fake_target = torch.zeros_like(fake_predict, requires_grad=False).to(device)
         fake_loss = -torch.log(1 - fake_predict).mean()
 
         # fake_predict = nn.functional.softplus(fake_predict).mean()
@@ -253,9 +252,13 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_show_loss == 0:
             d_losses.append((real_loss + fake_loss).item())
+            wandb.log({"D Loss": (real_loss + fake_loss).item()})
+            # TODO: add other metrics to log (FID, ...)
 
         # D optimizer step
         d_optim.step()
+
+
 
         del fake_predict, fake_loss
 
@@ -282,12 +285,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
-            wandb.log({"D Loss": (real_loss + fake_loss).item(),
-                       "G Loss": fake_loss.item()})
-
-
-            # TODO: add other metrics to log (FID, ...)
-
+            wandb.log({"G Loss": fake_loss.item()})
 
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
