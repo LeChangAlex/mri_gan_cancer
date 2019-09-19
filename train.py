@@ -39,6 +39,7 @@ import argparse
 import json
 
 n_gpu = 1
+
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 if n_gpu == 4:
@@ -71,9 +72,17 @@ n_checkpoint = 1600
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
-data_path = "/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium"
+
+if n_gpu == 1:
+    data_path = "/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium"
+elif n_gpu == 4:
+    data_path = "./data"
+
 save_im_path = './g_z/08_22_2019/'
-save_checkpoints_path = "./checkpoints"
+if n_gpu == 1:
+    save_checkpoints_path = "./checkpoints"
+elif n_gpu == 4:
+    data_path = "/hpf/largeprojects/agoldenb/lechang"
 
 
 wandb.init(project="mri_gan_cancer")
