@@ -52,7 +52,7 @@ learning_rate = {(50, 16): 0.001, (100,32): 0.001, (200, 64): 0.001, (400, 128):
 if n_gpu == 1:
     batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
-    batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 16, (800, 256): 16}
+    batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 24, (800, 256): 16}
 mini_batch_size = 8
 
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
@@ -154,7 +154,7 @@ def gain_sample(batch_size, image_size=(25,8)):
 
 f = plt.figure()
 def imsave(tensor, i):
-    wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]})
+    wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
 
 
 # Train function
@@ -301,7 +301,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             g_losses.append(fake_loss.item())
             wandb.log({"G Loss": g_losses[-1],
                        "D Loss": d_losses[-1]
-                       })
+                       },
+                      step=iteration)
             # TODO: add other metrics to log (FID, ...)
 
         if iteration % n_save_im == 0:
