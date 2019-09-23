@@ -82,8 +82,9 @@ save_im_path = './g_z/08_22_2019/'
 if n_gpu == 1:
     save_checkpoints_path = "./checkpoints"
 elif n_gpu == 4:
-    data_path = "/hpf/largeprojects/agoldenb/lechang"
+    save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang"
 
+load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 
 wandb.init(project="mri_gan_cancer")
 
@@ -97,6 +98,8 @@ parser.add_argument('--data_path', type=str, default=data_path, metavar='N',
 parser.add_argument('--g_z_path', type=str, default=save_im_path, metavar='N',
                      help='')
 parser.add_argument('--checkpoints_path', type=str, default=save_checkpoints_path, metavar='N',
+                     help='')
+parser.add_argument('--load_checkpoint', type=str, default=load_checkpoint, metavar='N',
                      help='')
 
 args = parser.parse_args()
@@ -354,10 +357,10 @@ g_optim.add_param_group({
 d_optim = optim.Adam(discriminator.parameters(), lr=0.001, betas=(0.0, 0.99))
 
 if is_continue:
-    if os.path.exists('networks/trained_279750.pth'):
+    if os.path.exists(load_checkpoint):
         # Load data from last checkpoint
         print('Loading pre-trained model...')
-        checkpoint = torch.load('networks/trained_279750.pth')
+        checkpoint = torch.load(load_checkpoint)
         generator.load_state_dict(checkpoint['generator'])
         discriminator.load_state_dict(checkpoint['discriminator'])
         g_optim.load_state_dict(checkpoint['g_optim'])
