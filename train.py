@@ -387,7 +387,7 @@ encoder = Encoder().to(device)
 wandb.watch((generator, discriminator, encoder))
 
 # Optimizers
-g_optim = optim.Adam([{
+g_optim = optim.SGD([{
     'params': generator.convs.parameters(),
     'lr': base_lr
 }, {
@@ -398,8 +398,8 @@ g_optim = optim.Adam([{
     'lr': base_lr
     # 'mul': 0.01
 }], lr=0.001, betas=(0.0, 0.99))
-d_optim = optim.Adam(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
-e_optim = optim.Adam(encoder.parameters(), lr=base_lr, betas=(0.0, 0.99))
+d_optim = optim.SGD(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
+e_optim = optim.SGD(encoder.parameters(), lr=base_lr, betas=(0.0, 0.99))
 
 if is_continue:
     if os.path.exists(load_checkpoint):
