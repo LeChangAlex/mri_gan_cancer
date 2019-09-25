@@ -7,6 +7,8 @@ import os
 import sys
 from models import StyleBased_Generator
 from models import Discriminator
+from models import Encoder
+
 from MRIDataset import MRIDataset
 import time
 
@@ -47,6 +49,7 @@ if n_gpu == 4:
 
 device = torch.device('cuda:0')
 
+
 # Original Learning Rate
 learning_rate = {(50, 16): 0.001, (100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
 if n_gpu == 1:
@@ -57,6 +60,10 @@ mini_batch_size = 8
 
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
 max_workers = 16
+
+
+lambda1 = 0.01
+lambda2 = 0.01
 
 n_fc = 8
 dim_latent = 512
@@ -100,6 +107,10 @@ parser.add_argument('--g_z_path', type=str, default=save_im_path, metavar='N',
 parser.add_argument('--checkpoints_path', type=str, default=save_checkpoints_path, metavar='N',
                      help='')
 parser.add_argument('--load_checkpoint', type=str, default=load_checkpoint, metavar='N',
+                     help='')
+parser.add_argument('--lambda1', type=str, default=lambda1, metavar='N',
+                     help='')
+parser.add_argument('--lambda2', type=str, default=lambda2, metavar='N',
                      help='')
 
 args = parser.parse_args()
@@ -158,7 +169,7 @@ def imsave(tensor, i):
 
 
 # Train function
-def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpoint=0, used_sample=0,
+def train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, iteration=0, startpoint=0, used_sample=0,
           d_losses=[], g_losses=[], alpha=0, criterion=nn.BCELoss()):
 
 
@@ -170,6 +181,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
     reset_LR(g_optim, learning_rate.get(resolution, 0.001))
     reset_LR(d_optim, learning_rate.get(resolution, 0.001))
+    reset_LR(e_optim, learning_rate.get(resolution, 0.001))
+
     progress_bar = tqdm(total=n_sample_total, initial=used_sample)
     # Train
     while used_sample < n_sample_total:
@@ -195,6 +208,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
             reset_LR(g_optim, learning_rate.get(resolution, 0.001))
             reset_LR(d_optim, learning_rate.get(resolution, 0.001))
+            reset_LR(e_optim, learning_rate.get(resolution, 0.001))
 
         try:
             # Try to read next image
@@ -246,11 +260,13 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
                      torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device)]
         noise_1 = []
         noise_2 = []
+        noise_3 = []
         for m in range(step + 1):
             size_x = 25 * 2 ** m  # Due to the upsampling, size of noise will grow
             size_y = 8 * 2 ** m
             noise_1.append(torch.randn((batch_size.get(resolution, mini_batch_size), 1, size_x, size_y), device=device))
             noise_2.append(torch.randn((batch_size.get(resolution, mini_batch_size), 1, size_x, size_y), device=device))
+            noise_3.append(torch.randn((real_image.shape[0], 1, size_x, size_y), device=device))
 
 
         # Generate fake image & backward
@@ -260,6 +276,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         else:
             fake_image = generator(latent_w1, step, alpha, noise_1, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
+
 
         # fake_loss = -torch.log(1 - fake_predict).mean()
         # fake_loss = criterion(fake_predict, zeros_like(fake_predict))
@@ -281,26 +298,49 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         if iteration % DGR != 0: continue
         # Due to DGR, train generator
         generator.zero_grad()
+        encoder.zero_grad()
         set_grad_flag(discriminator, False)
         set_grad_flag(generator, True)
+        set_grad_flag(encoder, True)
 
         if n_gpu > 1:
             fake_image = nn.parallel.data_parallel(generator, (latent_w2, step, alpha, noise_2, random_mix_steps()), range(n_gpu))
             fake_predict = nn.parallel.data_parallel(discriminator, (fake_image, step, alpha), range(n_gpu))
+            encoding = nn.parallel.data_parallel(encoder, (real_image, step, alpha), range(n_gpu))
+            e_fake_image = nn.parallel.data_parallel(generator, ([encoding], step, alpha, noise_3), range(n_gpu))
+            e_fake_predict = nn.parallel.data_parallel(discriminator, (e_fake_image, step, alpha), range(n_gpu))
+
         else:
             fake_image = generator(latent_w2, step, alpha, noise_2, random_mix_steps())
             fake_predict = discriminator(fake_image, step, alpha)
+            encoding = encoder(real_image, step, alpha)
+            e_fake_image = generator([encoding], step, alpha, noise_3)
+            e_fake_predict = discriminator(e_fake_image, step, alpha)
+
+
+
+
+        geometric_reg = lambda1 * torch.dist(real_image, e_fake_image)    # pixel l2
+
+        mode_reg = lambda2 * nn.functional.softplus(-e_fake_predict).mean()
+
+        geometric_reg.backward(retain_graph=True)
+        mode_reg.backward(retain_graph=True)
+
         # objectve is real targets (1 is realness metric)
         # fake_loss = -torch.log(fake_predict).mean()
         # fake_loss = criterion(fake_predict, ones_like(fake_predict))
         fake_loss = nn.functional.softplus(-fake_predict).mean()
         fake_loss.backward()
         g_optim.step()
+        e_optim.step()
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
             wandb.log({"G Loss": g_losses[-1],
-                       "D Loss": d_losses[-1]
+                       "D Loss": d_losses[-1],
+                       "Geometric Regularizer": geometric_reg.item()/lambda1,
+                       "Mode Regularizer": mode_reg.item()/lambda2
                        },
                       step=iteration)
             # TODO: add other metrics to log (FID, ...)
@@ -339,8 +379,9 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 # Create models
 generator = StyleBased_Generator(n_fc, dim_latent, dim_input).to(device)
 discriminator = Discriminator().to(device)
+encoder = Encoder().to(device)
 
-wandb.watch((generator, discriminator))
+wandb.watch((generator, discriminator, encoder))
 
 # Optimizers
 g_optim = optim.Adam([{
@@ -349,13 +390,13 @@ g_optim = optim.Adam([{
 }, {
     'params': generator.to_rgbs.parameters(),
     'lr': 0.001
-}], lr=0.001, betas=(0.0, 0.99))
-g_optim.add_param_group({
+}, {
     'params': generator.fcs.parameters(),
-    'lr': 0.001 * 0.01,
+    'lr': 0.001,
     'mul': 0.01
-})
+}], lr=0.001, betas=(0.0, 0.99))
 d_optim = optim.Adam(discriminator.parameters(), lr=0.001, betas=(0.0, 0.99))
+e_optim = optim.Adam(encoder.parameters(), lr=0.001, betas=(0.0, 0.99))
 
 if is_continue:
     if os.path.exists(load_checkpoint):
@@ -375,6 +416,7 @@ if is_continue:
 
 generator.train()
 discriminator.train()
+encoder.train()
 
-train(generator, discriminator, g_optim, d_optim, step, iteration, startpoint,
+train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, iteration, startpoint,
                            used_sample, d_losses, g_losses, alpha)

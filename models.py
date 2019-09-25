@@ -254,7 +254,7 @@ class ConvBlock(nn.Module):
     '''
 
     def __init__(self, in_channel, out_channel, size_kernel1, padding1,
-                 size_kernel2=None, padding2=None):
+                 size_kernel2=None, padding2=None, stride=(1, 1)):
         super().__init__()
 
         if size_kernel2 == None:
@@ -263,15 +263,13 @@ class ConvBlock(nn.Module):
             padding2 = padding1
 
         self.conv = nn.Sequential(
-            SConv2d(in_channel, out_channel, size_kernel1, padding=padding1),
+            SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride),
             nn.LeakyReLU(0.2),
             SConv2d(out_channel, out_channel, size_kernel2, padding=padding2),
             nn.LeakyReLU(0.2)
         )
 
     def forward(self, image):
-        # Downsample now proxyed by discriminator
-        # result = nn.functional.interpolate(image, scale_factor=0.5, mode="bilinear", align_corners=False)
         # Conv
         result = self.conv(image)
         return result
@@ -297,8 +295,88 @@ class Intermediate_Generator(nn.Module):
         latent_w = self.mapping(latent_z)
         return latent_w
 
-    # Generator
 
+class Encoder(nn.Module):
+    '''
+    Main Module
+    '''
+
+    def __init__(self):
+        super().__init__()
+        # Waiting to adjust the size
+        self.from_rgbs = nn.ModuleList([
+            SConv2d(1, 16, 1),
+            SConv2d(1, 32, 1),
+            SConv2d(1, 64, 1),
+            SConv2d(1, 128, 1),
+            SConv2d(1, 256, 1),
+            SConv2d(1, 512, 1),
+            SConv2d(1, 512, 1),
+            SConv2d(1, 512, 1),
+            SConv2d(1, 512, 1)
+        ])
+        self.convs = nn.ModuleList([
+            ConvBlock(16, 32, 3, 1, stride=()),
+            ConvBlock(32, 64, 3, 1),
+            ConvBlock(64, 128, 3, 1),
+            ConvBlock(128, 256, 3, 1),
+            ConvBlock(256, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1, (25, 8), 0)
+        ])
+        self.fc = SLinear(512, 512)
+
+        self.n_layer = 9  # 9 layers network
+
+    def forward(self, image,
+                step=0,  # Step means how many layers (count from 4 x 4) are used to train
+                alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
+        for i in range(step, -1, -1):
+            # Get the index of current layer
+            # Count from the bottom layer (4 * 4)
+            layer_index = self.n_layer - i - 1
+
+            # First layer, need to use from_rgb to convert to n_channel data
+            if i == step:
+                result = self.from_rgbs[layer_index](image)
+
+            # # Before final layer, do minibatch stddev
+            # if i == 0:
+            #     # In dim: [batch, channel(512), 4, 4]
+            #     res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+            #     # Out dim: [channel(512), 4, 4]
+            #     res_std = torch.sqrt(res_var)
+            #     # Out dim: [channel(512), 4, 4]
+            #     mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+            #     # Out dim: [1] -> [batch, 1, 4, 4]
+            #     result = torch.cat([result, mean_std], 1)
+            #     # Out dim: [batch, 512 + 1, 4, 4]
+
+            # Conv
+            result = self.convs[layer_index](result)
+
+            # Not the final layer
+            if i > 0:
+                # Downsample for further usage
+                # result = nn.functional.interpolate(result, scale_factor=0.5, mode='bilinear',
+                #                                    align_corners=False)
+                # Alpha set, combine the result of different layers when input
+                if i == step and 0 <= alpha < 1:
+                    result_next = self.from_rgbs[layer_index + 1](image)
+                    result_next = nn.functional.interpolate(result_next, scale_factor=0.5,
+                                                            mode='bilinear', align_corners=False)
+
+                    result = alpha * result + (1 - alpha) * result_next
+
+        # Now, result is [batch, channel(512), 1, 1]
+        # Convert it into [batch, channel(512)], so the fully-connetced layer
+        # could process it.
+        result = result.squeeze(2).squeeze(2)
+        result = self.fc(result)
+
+        return result
 
 # 5/13: Support progressive training
 # 5/13: Proxy noise generating
@@ -432,7 +510,7 @@ class Discriminator(nn.Module):
             SConv2d(1, 512, 1)
         ])
         self.convs = nn.ModuleList([
-            ConvBlock(16, 32, 3, 1),
+            ConvBlock(16, 32, 3, 1, stride=()),
             ConvBlock(32, 64, 3, 1),
             ConvBlock(64, 128, 3, 1),
             ConvBlock(128, 256, 3, 1),
@@ -442,7 +520,8 @@ class Discriminator(nn.Module):
             ConvBlock(512, 512, 3, 1),
             ConvBlock(512, 512, 3, 1, (25, 8), 0)
         ])
-        self.fc = SLinear(512, 1)
+        self.fc1 = SLinear(512, 512)
+        self.fc2 = SLinear(512, 1)
 
         self.n_layer = 9  # 9 layers network
 
@@ -476,8 +555,8 @@ class Discriminator(nn.Module):
             # Not the final layer
             if i > 0:
                 # Downsample for further usage
-                result = nn.functional.interpolate(result, scale_factor=0.5, mode='bilinear',
-                                                   align_corners=False)
+                # result = nn.functional.interpolate(result, scale_factor=0.5, mode='bilinear',
+                #                                    align_corners=False)
                 # Alpha set, combine the result of different layers when input
                 if i == step and 0 <= alpha < 1:
                     result_next = self.from_rgbs[layer_index + 1](image)
@@ -490,5 +569,7 @@ class Discriminator(nn.Module):
         # Convert it into [batch, channel(512)], so the fully-connetced layer
         # could process it.
         result = result.squeeze(2).squeeze(2)
-        result = self.fc(result)
+        result = self.fc1(result)
+        result = self.fc2(result)
+
         return result
