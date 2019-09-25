@@ -41,7 +41,7 @@ import argparse
 import json
 
 n_gpu = 1
-run_name = "MRGAN"
+run_name = "test"
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -54,7 +54,7 @@ base_lr = 0.0005
 # Original Learning Rate
 learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
-    batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
+    batch_size = {(25, 8): 64, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
     batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 24, (800, 256): 16}
 mini_batch_size = 8
@@ -323,7 +323,7 @@ def train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, it
 
 
 
-        geometric_reg = lambda1 * torch.dist(real_image, e_fake_image)    # pixel l2
+        geometric_reg = lambda1 * torch.dist(real_image, e_fake_image)/real_image.shape[0]    # pixel l2
 
         mode_reg = lambda2 * nn.functional.softplus(-e_fake_predict).mean()
 
