@@ -41,6 +41,7 @@ import argparse
 import json
 
 n_gpu = 1
+run_name = "MRGAN"
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -49,9 +50,9 @@ if n_gpu == 4:
 
 device = torch.device('cuda:0')
 
-
+base_lr = 0.0005
 # Original Learning Rate
-learning_rate = {(50, 16): 0.001, (100,32): 0.001, (200, 64): 0.001, (400, 128): 0.001, (800, 256): 0.001}
+learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
     batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
@@ -87,13 +88,15 @@ elif n_gpu == 4:
 
 save_im_path = './g_z/08_22_2019/'
 if n_gpu == 1:
-    save_checkpoints_path = "./checkpoints"
+    save_checkpoints_path = "./checkpoints/" + run_name
 elif n_gpu == 4:
-    save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang"
+    save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
 
-load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
+# load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
+load_checkpoint = "no" # restart
 
-wandb.init(project="mri_gan_cancer")
+
+wandb.init(project="mri_gan_cancer", name=run_name)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=str, default=str(batch_size), metavar='N',
@@ -179,9 +182,9 @@ def train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, it
     origin_loader = gain_sample(batch_size.get(resolution, mini_batch_size), resolution)
     data_loader = iter(origin_loader)
 
-    reset_LR(g_optim, learning_rate.get(resolution, 0.001))
-    reset_LR(d_optim, learning_rate.get(resolution, 0.001))
-    reset_LR(e_optim, learning_rate.get(resolution, 0.001))
+    reset_LR(g_optim, learning_rate.get(resolution, base_lr))
+    reset_LR(d_optim, learning_rate.get(resolution, base_lr))
+    reset_LR(e_optim, learning_rate.get(resolution, base_lr))
 
     progress_bar = tqdm(total=n_sample_total, initial=used_sample)
     # Train
@@ -206,9 +209,9 @@ def train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, it
 
             data_loader = iter(origin_loader)
 
-            reset_LR(g_optim, learning_rate.get(resolution, 0.001))
-            reset_LR(d_optim, learning_rate.get(resolution, 0.001))
-            reset_LR(e_optim, learning_rate.get(resolution, 0.001))
+            reset_LR(g_optim, learning_rate.get(resolution, base_lr))
+            reset_LR(d_optim, learning_rate.get(resolution, base_lr))
+            reset_LR(e_optim, learning_rate.get(resolution, base_lr))
 
         try:
             # Try to read next image
@@ -386,17 +389,17 @@ wandb.watch((generator, discriminator, encoder))
 # Optimizers
 g_optim = optim.Adam([{
     'params': generator.convs.parameters(),
-    'lr': 0.001
+    'lr': base_lr
 }, {
     'params': generator.to_rgbs.parameters(),
-    'lr': 0.001
+    'lr': base_lr
 }, {
     'params': generator.fcs.parameters(),
-    'lr': 0.001,
-    'mul': 0.01
+    'lr': base_lr
+    # 'mul': 0.01
 }], lr=0.001, betas=(0.0, 0.99))
-d_optim = optim.Adam(discriminator.parameters(), lr=0.001, betas=(0.0, 0.99))
-e_optim = optim.Adam(encoder.parameters(), lr=0.001, betas=(0.0, 0.99))
+d_optim = optim.Adam(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
+e_optim = optim.Adam(encoder.parameters(), lr=base_lr, betas=(0.0, 0.99))
 
 if is_continue:
     if os.path.exists(load_checkpoint):
