@@ -86,7 +86,7 @@ if n_gpu == 1:
 elif n_gpu == 4:
     data_path = "./data"
 
-save_im_path = './g_z/08_22_2019/'
+save_im_path = "./g_z/" + run_name
 if n_gpu == 1:
     save_checkpoints_path = "./checkpoints/" + run_name
 elif n_gpu == 4:
