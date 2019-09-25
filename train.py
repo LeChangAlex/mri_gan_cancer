@@ -41,7 +41,7 @@ import argparse
 import json
 
 n_gpu = 1
-run_name = "test"
+run_name = "MRGAN"
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -50,11 +50,11 @@ if n_gpu == 4:
 
 device = torch.device('cuda:0')
 
-base_lr = 0.0005
+base_lr = 0.001
 # Original Learning Rate
 learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
-    batch_size = {(25, 8): 64, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
+    batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
     batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 24, (800, 256): 16}
 mini_batch_size = 8
@@ -387,7 +387,7 @@ encoder = Encoder().to(device)
 wandb.watch((generator, discriminator, encoder))
 
 # Optimizers
-g_optim = optim.SGD([{
+g_optim = optim.Adam([{
     'params': generator.convs.parameters(),
     'lr': base_lr
 }, {
@@ -396,10 +396,10 @@ g_optim = optim.SGD([{
 }, {
     'params': generator.fcs.parameters(),
     'lr': base_lr
-    # 'mul': 0.01
-}], lr=0.001, betas=(0.0, 0.99))
-d_optim = optim.SGD(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
-e_optim = optim.SGD(encoder.parameters(), lr=base_lr, betas=(0.0, 0.99))
+    'mul': 0.01
+}], lr=base_lr, betas=(0.0, 0.99))
+d_optim = optim.Adam(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
+e_optim = optim.Adam(encoder.parameters(), lr=base_lr, betas=(0.0, 0.99))
 
 if is_continue:
     if os.path.exists(load_checkpoint):
