@@ -178,10 +178,6 @@ def imsave(tensor, i):
 
 
 def D_loop(latent_z, real_image, noise):
-    discriminator.zero_grad()
-    set_grad_flag(discriminator, True)
-    set_grad_flag(generator, False)
-
     # Real image predict & backward
     # We only implement non-saturating loss with R1 regularization loss
     if n_gpu > 1:
@@ -204,7 +200,7 @@ def D_loop(latent_z, real_image, noise):
 
     # Generate fake image & backward
     if n_gpu > 1:
-        fake_image = nn.parallel.data_parallel(generator, (latent_z, step, alpha, noise_1, random_mix_steps()),
+        fake_image = nn.parallel.data_parallel(generator, (latent_z, step, alpha, noise, random_mix_steps()),
                                                range(n_gpu))
         fake_predict = nn.parallel.data_parallel(discriminator, (fake_image, step, alpha), range(n_gpu))
     else:
@@ -221,7 +217,6 @@ def D_loop(latent_z, real_image, noise):
 
     # D optimizer step
     d_optim.step()
-    # d_optim.zero_grad()
 
     del fake_predict, fake_loss
 
@@ -285,6 +280,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         # D Module ---
         # Train discriminator first
+        # set_grad_flag(discriminator, True)
+        # set_grad_flag(generator, False)
 
         # Generate latent code
         latent_z1 = [torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device),
@@ -295,20 +292,23 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
             size_y = 8 * 2 ** m
             noise_1.append(torch.randn((batch_size.get(resolution, mini_batch_size), 1, size_x, size_y), device=device))
 
+        d_optim.zero_grad()
         D_loop(latent_z1, real_image, noise_1)
+
         # --- G module ---
         if iteration % DGR != 0: continue
         # Due to DGR, train generator
-        generator.zero_grad()
-        set_grad_flag(discriminator, False)
-        set_grad_flag(generator, True)
+        # set_grad_flag(discriminator, False)
+        # set_grad_flag(generator, True)
 
+        g_optim.zero_grad()
         # train the discriminator for unrolled_steps steps before evaluating the final loss
         if unrolled_steps > 0:
             # d_optim.zero_grad()
             # discriminator.zero_grad()
 
             backup = discriminator.state_dict()
+            backup_optim = d_optim.state_dict()
             for i in range(unrolled_steps):
                 latent_z2 = [torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device),
                              torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device)]
@@ -320,6 +320,8 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
                 D_loop(latent_z2, real_image, noise_2)
 
+        latent_z2 = [torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device),
+                     torch.randn((batch_size.get(resolution, mini_batch_size), dim_latent), device=device)]
         if n_gpu > 1:
             fake_image = nn.parallel.data_parallel(generator, (latent_z2, step, alpha, noise_2, random_mix_steps()), range(n_gpu))
             fake_predict = nn.parallel.data_parallel(discriminator, (fake_image, step, alpha), range(n_gpu))
@@ -347,8 +349,7 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
 
         if unrolled_steps > 0:
             discriminator.load_state_dict(backup)
-            # discriminator.load(backup)
-            # del backup
+            d_optim.load_state_dict(backup_optim)
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
