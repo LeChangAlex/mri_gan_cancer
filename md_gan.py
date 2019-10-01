@@ -315,7 +315,6 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
 
         if iteration % n_show_loss == 0:
             d1_losses.append(d1_loss.item())
-            d2_losses.append(d2_loss.item())
             e_losses.append(l2_loss.item())
 
 
@@ -394,6 +393,8 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
 
         if iteration % n_show_loss == 0:
             g_losses.append(g_loss.item())
+            d2_losses.append(d2_loss.item())
+
             wandb.log({"G Loss": g_losses[-1],
                        "D1 Loss": d1_losses[-1],
                        "D2 Loss": d2_losses[-1],
