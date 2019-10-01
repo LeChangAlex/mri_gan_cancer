@@ -50,7 +50,7 @@ if n_gpu == 4:
 
 device = torch.device('cuda:0')
 
-unrolled_steps = 3
+unrolled_steps = 5
 
 
 
@@ -105,6 +105,7 @@ load_checkpoint = "no" # restart
 
 wandb.init(project="mri_gan_cancer", name=run_name)
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=str, default=str(batch_size), metavar='N',
                      help='')
@@ -121,6 +122,8 @@ parser.add_argument('--load_checkpoint', type=str, default=load_checkpoint, meta
 parser.add_argument('--lambda1', type=str, default=lambda1, metavar='N',
                      help='')
 parser.add_argument('--lambda2', type=str, default=lambda2, metavar='N',
+                     help='')
+parser.add_argument('--unrolled_steps', type=str, default=unrolled_steps, metavar='N',
                      help='')
 
 args = parser.parse_args()

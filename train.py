@@ -82,7 +82,7 @@ max_step = 6
 style_mixing = []  # Waiting to implement
 
 if n_gpu == 1:
-    data_path = "/home/alexchang/PycharmProjects/gan_cancer_detection/wbmri_slices_medium"
+    data_path = "./data"
 elif n_gpu == 4:
     data_path = "./data"
 
@@ -169,6 +169,7 @@ def gain_sample(batch_size, image_size=(25,8)):
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
+
 
 
 # Train function
@@ -395,7 +396,7 @@ g_optim = optim.Adam([{
     'lr': base_lr
 }, {
     'params': generator.fcs.parameters(),
-    'lr': base_lr
+    'lr': base_lr,
     'mul': 0.01
 }], lr=base_lr, betas=(0.0, 0.99))
 d_optim = optim.Adam(discriminator.parameters(), lr=base_lr, betas=(0.0, 0.99))
@@ -422,4 +423,4 @@ discriminator.train()
 encoder.train()
 
 train(generator, discriminator, encoder, g_optim, d_optim, e_optim, step, iteration, startpoint,
-                           used_sample, d_losses, g_losses, alpha)
+                           used_sample, d_losses, g_losses, alpha)#, method="MDGAN")
