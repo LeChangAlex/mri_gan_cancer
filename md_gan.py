@@ -54,7 +54,7 @@ base_lr = 0.001
 # Original Learning Rate
 learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
-    batch_size = {(25, 8): 128, (50, 16): 128, (100, 32): 64, (200, 64): 10, (400, 128): 4, (800, 256): 4}
+    batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 16, (200, 64): 8, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
     batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 24, (800, 256): 16}
 mini_batch_size = 8
@@ -70,12 +70,12 @@ n_fc = 8
 dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
-n_sample = 600_000
+n_sample = 100
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
-n_save_im = 50
+n_save_im = 20
 n_checkpoint = 1600
 step = 0  # Train from (8 * 8)
 max_step = 6
@@ -184,12 +184,14 @@ def sample_data(data_loader, origin_loader):
         real_image = next(data_loader)
     return real_image
 
+
 def discriminate(discriminator, real_image, step, alpha, n_gpu):
     if n_gpu > 1:
         predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha), range(n_gpu))
     else:
         predict = discriminator(real_image, step, alpha)
     return predict
+
 
 def generate(generator, step, alpha, mix_steps, resolution, n_gpu, latent_w=None):
     if latent_w is None:
@@ -246,6 +248,7 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
 
         if (used_sample - startpoint) > n_sample and step < max_step:
             step += 1
+            print("Now on step", step)
             alpha = 0
             startpoint = used_sample
 
@@ -283,7 +286,7 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
 
         # Real image predict & backward
         # We only implement non-saturating loss with R1 regularization loss
-        real_image.requires_grad = True
+        # real_image.requires_grad = True
         discriminator1.zero_grad()
 
         d_real_image = discriminate(discriminator1, real_image, step, alpha, n_gpu)
@@ -317,7 +320,7 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
             d1_losses.append(d1_loss.item())
             e_losses.append(l2_loss.item())
 
-
+        del real_image, d_real_image, encoding, ge_real_image, dge_real_image, d1_loss, l2_loss, g_loss
         # grad_real = torch.autograd.grad(outputs=real_loss.sum(), inputs=real_image, create_graph=True)[0]
         # grad_penalty_real = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
         # grad_penalty_real = 10 / 2 * grad_penalty_real
@@ -406,6 +409,7 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
 
+        del real_image, encoding, ge_real_image, dge_real_image, fake_image, d_fake_image, d2_loss
 
         # Avoid possible memory leak
         # del fake_predict, fake_image, latent_w2

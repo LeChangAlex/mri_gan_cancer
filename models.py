@@ -316,14 +316,14 @@ class Encoder(nn.Module):
             SConv2d(1, 512, 1)
         ])
         self.convs = nn.ModuleList([
-            ConvBlock(16, 32, 3, 1, stride=()),
-            ConvBlock(32, 64, 3, 1),
-            ConvBlock(64, 128, 3, 1),
-            ConvBlock(128, 256, 3, 1),
-            ConvBlock(256, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
+            ConvBlock(16, 32, 3, 1, stride=(2, 2)),
+            ConvBlock(32, 64, 3, 1, stride=(2, 2)),
+            ConvBlock(64, 128, 3, 1, stride=(2, 2)),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
             ConvBlock(512, 512, 3, 1, (25, 8), 0)
         ])
         self.fc = SLinear(512, 512)
@@ -510,14 +510,14 @@ class Discriminator(nn.Module):
             SConv2d(1, 512, 1)
         ])
         self.convs = nn.ModuleList([
-            ConvBlock(16, 32, 3, 1, stride=()),
-            ConvBlock(32, 64, 3, 1),
-            ConvBlock(64, 128, 3, 1),
-            ConvBlock(128, 256, 3, 1),
-            ConvBlock(256, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
-            ConvBlock(512, 512, 3, 1),
+            ConvBlock(16, 32, 3, 1, stride=(2, 2)),
+            ConvBlock(32, 64, 3, 1, stride=(2, 2)),
+            ConvBlock(64, 128, 3, 1, stride=(2, 2)),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
             ConvBlock(512, 512, 3, 1, (25, 8), 0)
         ])
         self.fc1 = SLinear(512, 512)
@@ -562,7 +562,7 @@ class Discriminator(nn.Module):
                     result_next = self.from_rgbs[layer_index + 1](image)
                     result_next = nn.functional.interpolate(result_next, scale_factor=0.5,
                                                             mode='bilinear', align_corners=False)
-
+                    # print(result.shape, result_next.shape)
                     result = alpha * result + (1 - alpha) * result_next
 
         # Now, result is [batch, channel(512), 1, 1]
