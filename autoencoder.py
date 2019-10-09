@@ -46,7 +46,7 @@ num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
 max_workers = 16
 
 n_sample_total = 1_000_000
-step = 6
+step = 4
 batch_size = 256
 
 if n_gpu == 1:
@@ -74,7 +74,7 @@ load_checkpoint = "no" # restart
 
 DGR = 1
 n_show_loss = 1
-n_save_im = 50
+n_save_im = 10
 n_checkpoint = 1600
 
 wandb.init(project="mri_gan_cancer", name=run_name)
@@ -112,9 +112,34 @@ alpha = 0
 # True for start from saved model
 # False for retrain from the very beginning
 is_continue = True
-pixel_losses = [float('inf')]
-
 ae_losses = []
+#
+
+class SConv2d(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.conv = nn.Conv2d(*args, **kwargs)
+        self.conv.weight.data.normal_()
+        self.conv.bias.data.zero_()
+
+
+
+    def forward(self, x):
+        return self.conv(x)
+
+class SDeconv2d(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.deconv = nn.ConvTranspose2d(*args, **kwargs)
+        self.deconv.weight.data.normal_()
+        self.deconv.bias.data.zero_()
+
+
+    def forward(self, x):
+        return self.deconv(x)
+
 
 class AutoEncoder(nn.Module):
     def __init__(self, step):
@@ -122,53 +147,49 @@ class AutoEncoder(nn.Module):
 
         self.relu = nn.ReLU()
 
-        self.conv_layers = []
+        self.conv_layers = nn.ModuleList([])
 
         # Encoder
         # (800, 256) -> (400, 128) -> (200, 64) -> (100, 32) -> (50, 16) -> (25, 8) ->
-        self.first_layer = nn.Conv2d(in_channels=1,
+        self.conv_layers.append(SConv2d(in_channels=1,
                                       out_channels=16,
                                       kernel_size=3,
                                       padding=1,
-                                      stride=(2, 2))
-        self.last_layer = nn.ConvTranspose2d(in_channels=16,
-                                              out_channels=11,
-                                              kernel_size=3,
-                                              padding=1,
-                                              stride=(2, 2))
-        for i in range(step - 1):
+                                      stride=(2, 2)))
+        for i in range(step):
             self.conv_layers.append(nn.Sequential(
-                nn.Conv2d(in_channels=16*(2**i),
-                          out_channels=16*(2**i+1),
+                SConv2d(in_channels=16*(2**i),
+                          out_channels=16*(2**(i+1)),
                           kernel_size=3,
                           padding=1,
                           stride=(2, 2))
             ))
-
         # Decoder
-        for i in range(step - 1):
+        for i in range(step):
             self.conv_layers.append(nn.Sequential(
-                nn.ConvTranspose2d(in_channels=16 * (2 ** (step - i)),
+                SDeconv2d(in_channels=16 * (2 ** (step - i)),
                                    out_channels=16 * (2 ** (step - i - 1)),
-                                   kernel_size=3,
+                                   kernel_size=4,
                                    padding=1,
                                    stride=(2, 2))
             ))
+        self.conv_layers.append(SDeconv2d(in_channels=16,
+                                              out_channels=1,
+                                              kernel_size=4,
+                                              padding=1,
+                                              stride=(2, 2)))
 
     def forward(self, *input):
 
-        result = input
-        for i in range(len(self.conv_layers)):
+        result = input[0]
+        for i in range(len(self.conv_layers) - 1):
             result = self.conv_layers[i](result)
             result = self.relu(result)
 
+        result = self.conv_layers[-1](result)
+        # result = torch.sigmoid(result)
+
         return result
-
-
-
-def set_grad_flag(module, flag):
-    for p in module.parameters():
-        p.requires_grad = flag
 
 
 def reset_LR(optimizer, lr):
@@ -178,7 +199,7 @@ def reset_LR(optimizer, lr):
 
 
 # Gain sample
-def gain_sample(batch_size, image_size=(25,8)):
+def gain_sample(batch_size, image_size=(25, 8)):
     loader = DataLoader(MRIDataset(
         csv_file="./annotations_slices_medium.csv",
         root_dir=args.data_path,
@@ -188,16 +209,16 @@ def gain_sample(batch_size, image_size=(25,8)):
 
     return loader
 
+
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
 
 
-
 # Train function
 def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losses=[]):
 
-
+    criterion = nn.BCEWithLogitsLoss()
     origin_loader = gain_sample(batch_size=batch_size, image_size=(800, 256))
     data_loader = iter(origin_loader)
 
@@ -222,22 +243,27 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
         # Send image to GPU
         real_image = real_image.to(device)
 
-        # D Module ---
-        # Train discriminator first
-        real_image.requires_grad = True
+
+
+        # real_image.requires_grad = False
         if n_gpu > 1:
             reconstruction = nn.parallel.data_parallel(ae, (real_image), range(n_gpu))
         else:
             reconstruction = ae(real_image)
 
-        l1 = torch.abs(real_image - reconstruction)
-
+        # loss = reconstruction.sum()
+        # loss = torch.nn.functional.binary_cross_entropy(reconstruction, real_image).mean()
+        loss = torch.nn.functional.mse_loss(reconstruction, real_image)
+        # loss = ((reconstruction - real_image)**2).mean()
+        # loss = criterion(reconstruction, real_image)
         ae_optim.zero_grad()
-        l1.backward()
+        loss.backward()
+        # print(list(ae.parameters())[0].grad)
+
         ae_optim.step()
 
         if iteration % n_show_loss == 0:
-            ae_losses.append(l1.item())
+            ae_losses.append(loss.item())
             wandb.log({"AE Loss": ae_losses[-1],
                        },
                       step=iteration)
@@ -267,9 +293,9 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
 
 # Create models
-ae = AutoEncoder(step)
+ae = AutoEncoder(step).to(device)
 
-wandb.watch((ae))
+wandb.watch(ae)
 
 # Optimizers
 ae_optim = optim.Adam(ae.parameters(), lr=learning_rate, betas=(0.0, 0.99))
