@@ -47,7 +47,7 @@ max_workers = 16
 
 n_sample_total = 1_000_000
 step = 4
-batch_size = 256
+batch_size = 180
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -121,7 +121,7 @@ class SConv2d(nn.Module):
 
         self.conv = nn.Conv2d(*args, **kwargs)
         self.conv.weight.data.normal_()
-        self.conv.bias.data.zero_()
+        self.conv.bias.data.normal_()
 
 
 
@@ -132,13 +132,16 @@ class SDeconv2d(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
-        self.deconv = nn.ConvTranspose2d(*args, **kwargs)
-        self.deconv.weight.data.normal_()
-        self.deconv.bias.data.zero_()
+
+        self.conv = nn.Conv2d(*args, **kwargs)
+        self.conv.weight.data.normal_()
+        self.conv.bias.data.normal_()
 
 
     def forward(self, x):
-        return self.deconv(x)
+        result = nn.functional.interpolate(x, scale_factor=2, mode='bilinear',
+                                                  align_corners=False)
+        return self.conv(result)
 
 
 class AutoEncoder(nn.Module):
@@ -150,12 +153,13 @@ class AutoEncoder(nn.Module):
         self.conv_layers = nn.ModuleList([])
 
         # Encoder
-        # (800, 256) -> (400, 128) -> (200, 64) -> (100, 32) -> (50, 16) -> (25, 8) ->
+        # (800, 256, 1) -> (400, 128, 16) -> (200, 64, 32) -> (100, 32, 64) -> (50, 16, 128) -> (25, 8, 256) ->
         self.conv_layers.append(SConv2d(in_channels=1,
                                       out_channels=16,
                                       kernel_size=3,
                                       padding=1,
                                       stride=(2, 2)))
+
         for i in range(step):
             self.conv_layers.append(nn.Sequential(
                 SConv2d(in_channels=16*(2**i),
@@ -169,15 +173,15 @@ class AutoEncoder(nn.Module):
             self.conv_layers.append(nn.Sequential(
                 SDeconv2d(in_channels=16 * (2 ** (step - i)),
                                    out_channels=16 * (2 ** (step - i - 1)),
-                                   kernel_size=4,
+                                   kernel_size=3,
                                    padding=1,
-                                   stride=(2, 2))
+                                   stride=(1, 1))
             ))
         self.conv_layers.append(SDeconv2d(in_channels=16,
                                               out_channels=1,
-                                              kernel_size=4,
+                                              kernel_size=3,
                                               padding=1,
-                                              stride=(2, 2)))
+                                              stride=(1, 1)))
 
     def forward(self, *input):
 
@@ -218,7 +222,7 @@ def imsave(tensor, i):
 # Train function
 def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losses=[]):
 
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.MSELoss()
     origin_loader = gain_sample(batch_size=batch_size, image_size=(800, 256))
     data_loader = iter(origin_loader)
 
@@ -256,6 +260,10 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
         loss = torch.nn.functional.mse_loss(reconstruction, real_image)
         # loss = ((reconstruction - real_image)**2).mean()
         # loss = criterion(reconstruction, real_image)
+        print(loss.item())
+        loss = ((reconstruction.view(-1) - real_image.view(-1)) ** 2).mean()
+        print(loss.item())
+
         ae_optim.zero_grad()
         loss.backward()
         # print(list(ae.parameters())[0].grad)
@@ -264,6 +272,7 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         if iteration % n_show_loss == 0:
             ae_losses.append(loss.item())
+
             wandb.log({"AE Loss": ae_losses[-1],
                        },
                       step=iteration)
@@ -271,7 +280,8 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         if iteration % n_save_im == 0:
             imsave(reconstruction.data.cpu(), iteration)
-
+            plt.imshow(reconstruction.squeeze(1).detach().cpu().numpy()[0])
+            plt.show()
 
 
         if iteration % n_checkpoint == 0:
