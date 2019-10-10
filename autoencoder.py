@@ -257,12 +257,12 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         # loss = reconstruction.sum()
         # loss = torch.nn.functional.binary_cross_entropy(reconstruction, real_image).mean()
-        loss = torch.nn.functional.mse_loss(reconstruction, real_image)
+        # loss = torch.nn.functional.mse_loss(reconstruction, real_image)
         # loss = ((reconstruction - real_image)**2).mean()
-        # loss = criterion(reconstruction, real_image)
-        print(loss.item())
-        loss = ((reconstruction.view(-1) - real_image.view(-1)) ** 2).mean()
-        print(loss.item())
+        loss = criterion(reconstruction, real_image)
+        # print(loss.item())
+        # loss = ((reconstruction.view(-1) - real_image.view(-1)) ** 2).mean()
+        # print(loss.item())
 
         ae_optim.zero_grad()
         loss.backward()
@@ -280,8 +280,6 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         if iteration % n_save_im == 0:
             imsave(reconstruction.data.cpu(), iteration)
-            plt.imshow(reconstruction.squeeze(1).detach().cpu().numpy()[0])
-            plt.show()
 
 
         if iteration % n_checkpoint == 0:
