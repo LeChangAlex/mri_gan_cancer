@@ -10,6 +10,7 @@ from models import Discriminator
 from models import Encoder
 
 from MRIDataset import MRIDataset
+from fid import calculate_fid_given_paths
 import time
 
 # Import necessary modules
@@ -169,6 +170,12 @@ def gain_sample(batch_size, image_size=(25,8)):
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
+    grid = tensor[0][0]
+    grid.clamp_(-1, 1).add_(1).div_(2)
+    # Add 0.5 after normalizing to [0, 255] to round to nearest integer
+    ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
+    img = Image.fromarray(ndarr)
+    img.save(f'{save_im_path}sample-iter{i}.png')
 
 
 
@@ -311,13 +318,16 @@ def train(generator, discriminator, g_optim, d_optim, step, iteration=0, startpo
         fake_loss.backward()
         g_optim.step()
 
+        cuda = '0, 1, 2, 3'
+        paths = glob.glob(save_im_path + "/*.png")
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
             wandb.log({"G Loss": g_losses[-1],
-                       "D Loss": d_losses[-1]
+                       "D Loss": d_losses[-1],
+                       "FID": calculate_fid_given_paths(paths, batch_size, cuda, dims)
                        },
                       step=iteration)
-            # TODO: add other metrics to log (FID, ...)
+            
 
         if iteration % n_save_im == 0:
             imsave(fake_image.data.cpu(), iteration)
