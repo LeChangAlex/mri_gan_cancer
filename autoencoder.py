@@ -47,7 +47,7 @@ max_workers = 16
 
 n_sample_total = 1_000_000
 step = 4
-batch_size = 180
+batch_size = 90
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -159,8 +159,9 @@ class AutoEncoder(nn.Module):
                                       kernel_size=3,
                                       padding=1,
                                       stride=(2, 2)))
+        self.conv_layers.append(nn.BatchNorm2d(num_features=16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True))
 
-        for i in range(step):
+        for i in range(step-1):
             self.conv_layers.append(nn.Sequential(
                 SConv2d(in_channels=16*(2**i),
                           out_channels=16*(2**(i+1)),
@@ -168,15 +169,21 @@ class AutoEncoder(nn.Module):
                           padding=1,
                           stride=(2, 2))
             ))
+            self.conv_layers.append(
+                nn.BatchNorm2d(num_features=16*(2**(i+1)), eps=1e-05, momentum=0.1, affine=True, track_running_stats=True))
+
         # Decoder
-        for i in range(step):
+        for i in range(step-1):
             self.conv_layers.append(nn.Sequential(
-                SDeconv2d(in_channels=16 * (2 ** (step - i)),
-                                   out_channels=16 * (2 ** (step - i - 1)),
+                SDeconv2d(in_channels=16 * (2 ** (step - 1 - i)),
+                                   out_channels=16 * (2 ** (step - 1 - i - 1)),
                                    kernel_size=3,
                                    padding=1,
                                    stride=(1, 1))
             ))
+            self.conv_layers.append(
+                nn.BatchNorm2d(num_features=16 * (2 ** (step - 1 - i - 1)), eps=1e-05, momentum=0.1, affine=True,
+                               track_running_stats=True))
         self.conv_layers.append(SDeconv2d(in_channels=16,
                                               out_channels=1,
                                               kernel_size=3,
@@ -214,10 +221,15 @@ def gain_sample(batch_size, image_size=(25, 8)):
     return loader
 
 
-f = plt.figure()
+# f = plt.figure()
 def imsave(tensor, i):
-    wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
+    im_list = []
+    for i in range(min(tensor.shape[0], 10)):
+        t = tensor[i][0]
+        t = (t - torch.min(t)) / (torch.max(t) - torch.min(t))
+        im_list.append(wandb.Image(t, mode="F"))
 
+    wandb.log({"G(z)": im_list})
 
 # Train function
 def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losses=[]):
@@ -270,15 +282,25 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         ae_optim.step()
 
+
+
+
         if iteration % n_show_loss == 0:
             ae_losses.append(loss.item())
 
             wandb.log({"AE Loss": ae_losses[-1],
-                       },
+                       "Batch Max": np.amax(reconstruction.data.cpu().numpy()),
+                       "Batch Min": np.amin(reconstruction.data.cpu().numpy())},
                       step=iteration)
+
             # TODO: add other metrics to log (FID, ...)
 
         if iteration % n_save_im == 0:
+            plt.imshow(reconstruction.data.cpu()[0, 0], cmap="gray")
+            plt.show(block=False)
+            plt.pause(1)
+
+
             imsave(reconstruction.data.cpu(), iteration)
 
 
