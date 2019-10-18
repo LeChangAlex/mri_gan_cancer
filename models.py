@@ -7,6 +7,203 @@ import math
 # Constraints
 # Input: [batch_size, in_channels, height, width]
 
+class AESConv2d(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.conv = nn.Conv2d(*args, **kwargs)
+        self.conv.weight.data.normal_()
+        self.conv.bias.data.normal_()
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class AESDeconv2d(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.conv = nn.Conv2d(*args, **kwargs)
+        self.conv.weight.data.normal_()
+        self.conv.bias.data.normal_()
+
+
+    def forward(self, x):
+        result = nn.functional.interpolate(x, scale_factor=2, mode='bilinear',
+                                                  align_corners=False)
+        return self.conv(result)
+
+
+class AutoEncoder(nn.Module):
+    def __init__(self, step):
+        super().__init__()
+
+        self.relu = nn.ReLU()
+        self.encoder_layers = nn.ModuleList([])
+        self.decoder_layers = nn.ModuleList([])
+
+        # Encoder
+        # (800, 256, 1) -> (400, 128, 16) -> (200, 64, 32) -> (100, 32, 64) -> (50, 16, 128) -> (25, 8, 256) ->
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=1,
+                                      out_channels=8,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(num_features=8, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+        )
+
+
+        for i in range(step):
+            self.encoder_layers.append(nn.Sequential(
+                AESConv2d(in_channels=8 * (2 ** i),
+                          out_channels=8*(2**(i+1)),
+                          kernel_size=3,
+                          padding=1,
+                          stride=(2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(num_features=8*(2**(i+1)), eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            ))
+
+        # self.encoder_layers.append(nn.Sequential(
+        #     # (50, 16, 64) -> (25, 8, 128)
+        #     AESConv2d(in_channels=64,
+        #               out_channels=128,
+        #               kernel_size=3,
+        #               padding=(1, 1),
+        #               stride=(2, 2)),
+        #     nn.ReLU(),
+        #     nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+        #                    track_running_stats=True)
+        # ))
+        self.encoder_layers.append(nn.Sequential(
+            # (25, 8, 128) -> (12, 4, 256)
+            AESConv2d(in_channels=128,
+                      out_channels=256,
+                      kernel_size=3,
+                      padding=(0, 1),
+                      stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True)
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            # (12, 4, 256) -> (4, 2, 512)
+            AESConv2d(in_channels=256,
+                      out_channels=512,
+                      kernel_size=(5, 3),
+                      padding=(2, 1),
+                      stride=(3, 2)),
+
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            # (4, 2, 512) -> (2, 1, 1024)
+            AESConv2d(in_channels=512,
+                      out_channels=1024,
+                      kernel_size=3,
+                      padding=(1, 1),
+                      stride=(2, 2)),
+
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=1024, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True)
+        ))
+
+
+        # Decoder
+        self.decoder_layers.append(nn.Sequential(
+            #  (2, 1, 1024) -> (4, 2, 512)
+            nn.ConvTranspose2d(in_channels=1024,
+                                out_channels=512,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 1)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+
+            # (4, 2, 512) -> (12, 4, 256)
+            nn.ConvTranspose2d(in_channels=512,
+                               out_channels=256,
+                               kernel_size=(5, 4),
+                               padding=1,
+                               stride=(3, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+
+            # (12, 4, 256) -> (25, 8, 128)
+            nn.ConvTranspose2d(in_channels=256,
+                               out_channels=128,
+                               kernel_size=(5, 4),
+                               padding=1,
+                               stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+
+
+        for i in range(step):
+            self.decoder_layers.append(nn.Sequential(
+                AESDeconv2d(in_channels=8 * (2 ** (step - i)),
+                            out_channels=8 * (2 ** (step - i - 1)),
+                            kernel_size=3,
+                            padding=1,
+                            stride=(1, 1)),
+                nn.ReLU(),
+                nn.BatchNorm2d(num_features=8 * (2 ** (step - i - 1)), eps=1e-05, momentum=0.1, affine=True,
+                               track_running_stats=True))
+            )
+        self.decoder_layers.append(nn.Sequential(
+                AESDeconv2d(in_channels=8,
+                out_channels=1,
+                kernel_size=3,
+                padding=1,
+                stride=(1, 1)),
+        ))
+
+
+    def forward(self, *input):
+        result = input[0]
+        result = self.encode(result)
+
+        result = self.relu(result)
+
+        result = self.decode(result)
+
+        return result
+
+    def encode(self, result):
+
+        for i in range(len(self.encoder_layers)):
+
+            result = self.encoder_layers[i](result)
+            # print(i, result.shape)
+
+
+
+        return result
+
+    def decode(self, result):
+        for i in range(len(self.decoder_layers) - 1):
+            result = self.decoder_layers[i](result)
+            # print(i, result.shape)
+
+        result = self.decoder_layers[-1](result)
+
+        return result
+
+
 # Scaled weight - He initialization
 # "explicitly scale the weights at runtime"
 class ScaleW:
