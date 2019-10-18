@@ -25,9 +25,9 @@ limitations under the License.
 import os
 import pathlib
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import torch
 
 import numpy as np
-import torch
 from scipy import linalg
 from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
@@ -77,6 +77,7 @@ def get_activations(files, model, batch_size=50, dims=2048,
     model.eval()
 
     if len(files) % batch_size != 0:
+        print(len(files))
         print(('Warning: number of images is not a multiple of the '
                'batch size. Some samples are going to be ignored.'))
     if batch_size > len(files):
@@ -89,19 +90,25 @@ def get_activations(files, model, batch_size=50, dims=2048,
 
     pred_arr = np.empty((n_used_imgs, dims))
 
-    for i in tqdm(range(n_batches)):
+    for i in range(n_batches):
         if verbose:
             print('\rPropagating batch %d/%d' % (i + 1, n_batches),
                   end='', flush=True)
         start = i * batch_size
         end = start + batch_size
 
-        images = np.array([imread(str(f)).astype(np.float32)
-                           for f in files[start:end]])
 
-        # Reshape to (n_images, 3, height, width)
-        images = images.transpose((0, 3, 1, 2))
-        images /= 255
+        images = [imread(str(f)).astype(np.float32)
+                           for f in files[start:end]]
+        images_3ch = []
+        for im in images:
+            channels = np.stack((im,)*3, axis=-1).reshape(3,im.shape[1], im.shape[0])
+            images_3ch.append(channels)
+        images = np.array(images_3ch)
+        images = images.transpose((0, 1, 3, 2))
+        # # Reshape to (n_images, 1, height, width)
+        # images = images.transpose((0, 1, 1, 2))
+        # images /= 255
 
         batch = torch.from_numpy(images).type(torch.FloatTensor)
         if cuda:
@@ -208,7 +215,7 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
         f.close()
     else:
         path = pathlib.Path(path)
-        files = list(path.glob('*.jpg')) + list(path.glob('*.png'))
+        files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*.npy'))
         m, s = calculate_activation_statistics(files, model, batch_size,
                                                dims, cuda)
 

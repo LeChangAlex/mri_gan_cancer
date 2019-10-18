@@ -10,6 +10,7 @@ from models import Discriminator
 from models import Encoder
 
 from MRIDataset import MRIDataset
+from fid import calculate_fid_given_paths
 import time
 
 # Import necessary modules
@@ -25,6 +26,7 @@ from PIL import Image
 import torch.optim as optim
 import torch.nn as nn
 import torch
+import glob
 
 #---------------------------------------------------
 # Copied module to solve shared memory conflict trouble
@@ -40,7 +42,7 @@ import wandb
 import argparse
 import json
 
-n_gpu = 1
+n_gpu = 2
 run_name = "AE"
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
 max_workers = 16
@@ -50,7 +52,9 @@ step = 4
 batch_size = 256
 
 if n_gpu == 1:
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+if n_gpu == 2:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 if n_gpu == 4:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
 
@@ -58,13 +62,13 @@ device = torch.device('cuda:0')
 
 learning_rate = 0.001
 
-if n_gpu == 1:
-    data_path = "./data"
+if n_gpu <= 2:
+    data_path = "./wbmri_slices_medium"
 elif n_gpu == 4:
     data_path = "./data"
 
 save_im_path = "./ae_reconstruct/" + run_name
-if n_gpu == 1:
+if n_gpu <= 2:
     save_checkpoints_path = "./ae_checkpoints/" + run_name
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/ae/" + run_name
@@ -73,8 +77,8 @@ elif n_gpu == 4:
 load_checkpoint = "no" # restart
 
 DGR = 1
-n_show_loss = 1
-n_save_im = 10
+n_show_loss = 10
+n_save_im = 2
 n_checkpoint = 1600
 
 wandb.init(project="mri_gan_cancer", name=run_name)
@@ -113,6 +117,7 @@ alpha = 0
 # False for retrain from the very beginning
 is_continue = True
 ae_losses = []
+fid_scores = []
 #
 
 class SConv2d(nn.Module):
@@ -213,10 +218,16 @@ def gain_sample(batch_size, image_size=(25, 8)):
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
+    grid = tensor[0][0]
+    grid.clamp_(-1, 1).add_(1).div_(2)
+    # Add 0.5 after normalizing to [0, 255] to round to nearest integer
+    ndarr = grid.mul_(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8).numpy()
+    img = Image.fromarray(ndarr)
+    img.save(f'{save_im_path}/sample-iter{i}.png')
 
 
 # Train function
-def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losses=[]):
+def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losses=[], fid_scores=[]):
 
     criterion = nn.BCEWithLogitsLoss()
     origin_loader = gain_sample(batch_size=batch_size, image_size=(800, 256))
@@ -262,15 +273,32 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
 
         ae_optim.step()
 
+        if iteration % n_save_im == 0:
+            imsave(reconstruction.data.cpu(), iteration)
+
         if iteration % n_show_loss == 0:
+            if n_gpu == 1:
+                cuda = '0'
+            elif n_gpu == 2:
+                cuda = '0,1'
+            elif n_gpu == 4:
+                cuda = '0,1,2,3'
+            paths =["./wbmri_slices_medium_png/", save_im_path]
+            dims = 2048
             ae_losses.append(loss.item())
+            fid_batch_size = 1
+            fid_scores.append(calculate_fid_given_paths(paths, fid_batch_size, cuda, dims))
             wandb.log({"AE Loss": ae_losses[-1],
+                       "FID": fid_scores[-1]
                        },
                       step=iteration)
             # TODO: add other metrics to log (FID, ...)
+            progress_bar.set_description(
+                (f'Resolution: AE_Loss: {ae_losses[-1]:.4f}, FID Score: {fid_scores[-1]:.4f}')
 
-        if iteration % n_save_im == 0:
-            imsave(reconstruction.data.cpu(), iteration)
+            )
+
+
 
 
 
@@ -281,15 +309,14 @@ def train(ae, ae_optim, step, iteration=0, startpoint=0, used_sample=0, ae_losse
                 'ae': ae.state_dict(),
                 'ae_optim': ae_optim.state_dict(),
                 'parameters': (step, iteration, startpoint, used_sample),
-                'ae_losses': ae_losses
+                'ae_losses': ae_losses,
+                'fid_scores': fid_scores
             }, f'{save_checkpoints_path}/trained-{iteration}.pth')
             wandb.save(f'{save_checkpoints_path}/trained-{iteration}.pth')
             print(f' Model successfully saved.')
 
 
-        progress_bar.set_description(
-            (f'Resolution: AE_Loss: {ae_losses[-1]:.4f}')
-        )
+
 
 
 # Create models
