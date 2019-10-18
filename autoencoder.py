@@ -8,6 +8,7 @@ import sys
 from models import StyleBased_Generator
 from models import Discriminator
 from models import Encoder
+from models import *
 
 from MRIDataset import MRIDataset
 import time
@@ -48,15 +49,16 @@ max_workers = 16
 n_sample_total = 1_000_000
 step = 4
 batch_size = 90
+learning_rate = 0.001
+
 
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 if n_gpu == 4:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
 
-device = torch.device('cuda:0')
 
-learning_rate = 0.001
+device = torch.device('cuda:0')
 
 if n_gpu == 1:
     data_path = "./data"
@@ -68,6 +70,9 @@ if n_gpu == 1:
     save_checkpoints_path = "./ae_checkpoints/" + run_name
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/ae/" + run_name
+
+
+
 
 # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 load_checkpoint = "no" # restart
@@ -114,93 +119,6 @@ alpha = 0
 is_continue = True
 ae_losses = []
 #
-
-class SConv2d(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-
-        self.conv = nn.Conv2d(*args, **kwargs)
-        self.conv.weight.data.normal_()
-        self.conv.bias.data.normal_()
-
-
-
-    def forward(self, x):
-        return self.conv(x)
-
-class SDeconv2d(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-
-
-        self.conv = nn.Conv2d(*args, **kwargs)
-        self.conv.weight.data.normal_()
-        self.conv.bias.data.normal_()
-
-
-    def forward(self, x):
-        result = nn.functional.interpolate(x, scale_factor=2, mode='bilinear',
-                                                  align_corners=False)
-        return self.conv(result)
-
-
-class AutoEncoder(nn.Module):
-    def __init__(self, step):
-        super().__init__()
-
-        self.relu = nn.ReLU()
-
-        self.conv_layers = nn.ModuleList([])
-
-        # Encoder
-        # (800, 256, 1) -> (400, 128, 16) -> (200, 64, 32) -> (100, 32, 64) -> (50, 16, 128) -> (25, 8, 256) ->
-        self.conv_layers.append(SConv2d(in_channels=1,
-                                      out_channels=16,
-                                      kernel_size=3,
-                                      padding=1,
-                                      stride=(2, 2)))
-        self.conv_layers.append(nn.BatchNorm2d(num_features=16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True))
-
-        for i in range(step-1):
-            self.conv_layers.append(nn.Sequential(
-                SConv2d(in_channels=16*(2**i),
-                          out_channels=16*(2**(i+1)),
-                          kernel_size=3,
-                          padding=1,
-                          stride=(2, 2))
-            ))
-            self.conv_layers.append(
-                nn.BatchNorm2d(num_features=16*(2**(i+1)), eps=1e-05, momentum=0.1, affine=True, track_running_stats=True))
-
-        # Decoder
-        for i in range(step-1):
-            self.conv_layers.append(nn.Sequential(
-                SDeconv2d(in_channels=16 * (2 ** (step - 1 - i)),
-                                   out_channels=16 * (2 ** (step - 1 - i - 1)),
-                                   kernel_size=3,
-                                   padding=1,
-                                   stride=(1, 1))
-            ))
-            self.conv_layers.append(
-                nn.BatchNorm2d(num_features=16 * (2 ** (step - 1 - i - 1)), eps=1e-05, momentum=0.1, affine=True,
-                               track_running_stats=True))
-        self.conv_layers.append(SDeconv2d(in_channels=16,
-                                              out_channels=1,
-                                              kernel_size=3,
-                                              padding=1,
-                                              stride=(1, 1)))
-
-    def forward(self, *input):
-
-        result = input[0]
-        for i in range(len(self.conv_layers) - 1):
-            result = self.conv_layers[i](result)
-            result = self.relu(result)
-
-        result = self.conv_layers[-1](result)
-        # result = torch.sigmoid(result)
-
-        return result
 
 
 def reset_LR(optimizer, lr):

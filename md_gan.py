@@ -5,9 +5,7 @@
 # And Make Sure Your Pytorch Version >= 1.0.1
 import os
 import sys
-from models import StyleBased_Generator
-from models import Discriminator
-from models import Encoder
+from models import *
 
 from MRIDataset import MRIDataset
 import time
@@ -25,7 +23,7 @@ from PIL import Image
 import torch.optim as optim
 import torch.nn as nn
 import torch
-
+from metrics import DomainFD
 #---------------------------------------------------
 # Copied module to solve shared memory conflict trouble
 # 5/15: No using shared memory
@@ -92,6 +90,8 @@ if n_gpu == 1:
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
 
+ae_dir = "./ae_checkpoints/trained-9600.pth"
+
 # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 load_checkpoint = "no" # restart
 
@@ -139,8 +139,7 @@ d1_losses = [float('inf')]
 d2_losses = [float('inf')]
 e_losses = [float('inf')]
 g_losses = [float('inf')]
-
-
+fd = [float('inf')]
 
 
 def random_mix_steps():
@@ -225,8 +224,10 @@ def encode(encoder, image, step, alpha, n_gpu):
 
 
 # Train function
-def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim, d2_optim, e_optim, step, iteration=0, startpoint=0, used_sample=0,
-          d1_losses=[], d2_losses=[], e_losses=[], g_losses=[],alpha=0, criterion=nn.BCELoss()):
+def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_optim, d1_optim, d2_optim, e_optim, step, iteration=0, startpoint=0, used_sample=0,
+          d1_losses=[], d2_losses=[], e_losses=[], g_losses=[],alpha=0):
+
+
 
     resolution = (25 * 2 ** step, 8 * 2 ** step)
 
@@ -234,6 +235,12 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
     data_loader1 = iter(origin_loader)
     data_loader2 = iter(origin_loader)
 
+    ae_step = 4
+    ae_resolution = (25 * 2 ** ae_step, 8 * 2 ** ae_step)
+    fd_calculator = DomainFD(autoencoder, ae_resolution, device=device)
+
+    ae_data_loader = iter(gain_sample(359, ae_resolution))
+    fd_calculator.fit_real_data(ae_data_loader)
 
     reset_LR(g_optim, learning_rate.get(resolution, base_lr))
     reset_LR(d1_optim, learning_rate.get(resolution, base_lr))
@@ -281,12 +288,6 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
         # Manifold step--------------------------------------------------
         # D Module ---
         # Train discriminator first
-        # set_grad_flag(discriminator1, True)
-        # set_grad_flag(generator, False)
-
-        # Real image predict & backward
-        # We only implement non-saturating loss with R1 regularization loss
-        # real_image.requires_grad = True
         discriminator1.zero_grad()
 
         d_real_image = discriminate(discriminator1, real_image, step, alpha, n_gpu)
@@ -327,31 +328,6 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
         # grad_penalty_real.backward()
 
 
-
-        # # Generate fake image & backward
-        # fake_predict = discriminate(discriminator1, fake_image, step, alpha, n_gpu)
-        # fake_image = generate(generator, step, alpha, random_mix_steps(), n_gpu, resolution)
-        #
-        #
-        # # fake_loss = -torch.log(1 - fake_predict).mean()
-        # # fake_loss = criterion(fake_predict, zeros_like(fake_predict))
-        # fake_loss = nn.functional.softplus(fake_predict).mean()
-        # fake_loss.backward()
-        #
-        # if iteration % n_show_loss == 0:
-        #     d_losses.append(d1_loss.item())
-
-        # # D optimizer step
-        # d1_optim.step()
-
-        # del fake_predict, fake_loss
-
-        # Diffusion Step ----------------------------------------
-        # if iteration % DGR != 0: continue
-        # Due to DGR, train generator
-        # set_grad_flag(discriminator1, False)
-        # set_grad_flag(generator, True)
-        # set_grad_flag(encoder, True)
 
         real_image = sample_data(data_loader2, origin_loader)
 
@@ -397,11 +373,13 @@ def train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim,
         if iteration % n_show_loss == 0:
             g_losses.append(g_loss.item())
             d2_losses.append(d2_loss.item())
+            fd.append(fd_calculator.calculate_fd(fake_image))
 
             wandb.log({"G Loss": g_losses[-1],
                        "D1 Loss": d1_losses[-1],
                        "D2 Loss": d2_losses[-1],
-                       "E Loss": e_losses[-1]
+                       "E Loss": e_losses[-1],
+                       "Domain FD": e_losses[-1]
                        },
                       step=iteration)
             # TODO: add other metrics to log (FID, ...)
@@ -451,6 +429,10 @@ discriminator1 = Discriminator().to(device)
 discriminator2 = Discriminator().to(device)
 encoder = Encoder().to(device)
 
+# resize images to fit this size
+autoencoder = AutoEncoder(step=4).to(device)
+
+
 wandb.watch((generator, discriminator1, discriminator2, encoder))
 
 # Optimizers
@@ -494,8 +476,8 @@ if is_continue:
 generator.train()
 discriminator1.train()
 discriminator2.train()
-
 encoder.train()
+autoencoder.eval()
 
-train(generator, discriminator1, discriminator2, encoder, g_optim, d1_optim, d2_optim, e_optim, step, iteration, startpoint,
+train(generator, discriminator1, discriminator2, encoder, autoencoder, g_optim, d1_optim, d2_optim, e_optim, step, iteration, startpoint,
                            used_sample, d1_losses, d2_losses, e_losses, g_losses, alpha)#, method="MDGAN")
