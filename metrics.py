@@ -37,6 +37,7 @@ class DomainFD:
         """
         :param data: tensor
         """
+
         gen_data = nn.functional.interpolate(gen_data, size=self.ae_resolution,
                                   mode='bilinear', align_corners=False)
         with torch.no_grad():
@@ -59,8 +60,8 @@ class DomainFD:
         sigma1 = self.real_cov
         sigma2 = gen_cov
 
-        print(mu1, mu2)
-        print(sigma1, sigma2)
+        # print(mu1, mu2)
+        # print(sigma1, sigma2)
 
         diff = mu1 - mu2
 
@@ -86,6 +87,10 @@ class DomainFD:
 
         fd = (diff.dot(diff) + np.trace(sigma1) +
                 np.trace(sigma2) - 2 * tr_covmean)
-        print(fd)
+        print(diff.dot(diff))
+        print(np.trace(sigma1))
+        print(np.trace(sigma2))
+        print(tr_covmean, "=====")
+
         return fd
 

@@ -38,10 +38,12 @@ import wandb
 import argparse
 import json
 
-n_gpu = 4
+n_gpu = 1
 run_name = "MDGAN+DFD, lambda=0.01"
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+if n_gpu == 2:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
 if n_gpu == 4:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
 
@@ -52,6 +54,8 @@ base_lr = 0.001
 learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
     batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 16, (200, 64): 8, (400, 128): 4, (800, 256): 4}
+if n_gpu == 2:
+    batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 24, (200, 64): 16, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
     batch_size = {(25, 8): 512, (50, 16): 90, (100, 32): 45, (200, 64): 32, (400, 128): 12, (800, 256): 8}
 mini_batch_size = 8
@@ -67,7 +71,8 @@ n_fc = 8
 dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
-n_sample = 600_000
+# n_sample = 600_000
+n_sample = 10
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
@@ -78,13 +83,13 @@ step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
 
-if n_gpu == 1:
+if n_gpu == 1 or n_gpu == 2:
     data_path = "./data"
 elif n_gpu == 4:
     data_path = "./data"
 
 save_im_path = "./g_z/" + run_name
-if n_gpu == 1:
+if n_gpu == 1 or n_gpu == 2:
     save_checkpoints_path = "./checkpoints/" + run_name
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
@@ -249,6 +254,7 @@ def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_opt
     progress_bar = tqdm(total=n_sample_total, initial=used_sample)
     # Train
     while used_sample < n_sample_total:
+
         iteration += 1
         alpha = min(1, alpha + batch_size.get(resolution, mini_batch_size) / (n_sample))
 
@@ -372,14 +378,15 @@ def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_opt
         if iteration % n_show_loss == 0:
             g_losses.append(g_loss.item())
             d2_losses.append(d2_loss.item())
-            print(fd_calculator.calculate_fd(fake_image))
+            # print(fd_calculator.calculate_fd(fake_image))
             fd.append(fd_calculator.calculate_fd(fake_image))
 
             wandb.log({"G Loss": g_losses[-1],
                        "D1 Loss": d1_losses[-1],
                        "D2 Loss": d2_losses[-1],
                        "E Loss": e_losses[-1],
-                       "Domain FD": fd[-1]
+                       "Domain FD": fd[-1],
+                       "Images Shown": n_sample
                        },
                       step=iteration)
             # TODO: add other metrics to log (FID, ...)
