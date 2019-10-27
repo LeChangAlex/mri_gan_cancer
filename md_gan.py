@@ -38,9 +38,8 @@ import wandb
 import argparse
 import json
 
-n_gpu = 1
-run_name = "MRGAN"
-
+n_gpu = 4
+run_name = "MDGAN+DFD, lambda=0.01"
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 if n_gpu == 4:
@@ -54,7 +53,7 @@ learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 6
 if n_gpu == 1:
     batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 16, (200, 64): 8, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
-    batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 180, (200, 64): 64, (400, 128): 24, (800, 256): 16}
+    batch_size = {(25, 8): 512, (50, 16): 90, (100, 32): 45, (200, 64): 32, (400, 128): 12, (800, 256): 8}
 mini_batch_size = 8
 
 num_workers = {(200, 64): 8, (400, 128): 4, (800, 256): 2}
@@ -68,13 +67,13 @@ n_fc = 8
 dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
-n_sample = 100
+n_sample = 600_000
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
-n_save_im = 20
-n_checkpoint = 1600
+n_save_im = 10
+n_checkpoint = 100
 step = 0  # Train from (8 * 8)
 max_step = 6
 style_mixing = []  # Waiting to implement
@@ -373,13 +372,14 @@ def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_opt
         if iteration % n_show_loss == 0:
             g_losses.append(g_loss.item())
             d2_losses.append(d2_loss.item())
+            print(fd_calculator.calculate_fd(fake_image))
             fd.append(fd_calculator.calculate_fd(fake_image))
 
             wandb.log({"G Loss": g_losses[-1],
                        "D1 Loss": d1_losses[-1],
                        "D2 Loss": d2_losses[-1],
                        "E Loss": e_losses[-1],
-                       "Domain FD": e_losses[-1]
+                       "Domain FD": fd[-1]
                        },
                       step=iteration)
             # TODO: add other metrics to log (FID, ...)
