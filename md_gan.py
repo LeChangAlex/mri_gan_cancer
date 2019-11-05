@@ -94,13 +94,16 @@ if n_gpu == 1 or n_gpu == 2:
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
 
-ae_dir = "./ae_checkpoints/trained-9600.pth"
+ae_dir = "./ae_checkpoints/ae-9600.pth"
 
 # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 load_checkpoint = "no" # restart
 
+if n_gpu == 1:
+    wandb.init(project="mri_gan_cancer", name=run_name)
+elif n_gpu == 4:
+    wandb.init(project="mri_gan_cancer", name=run_name, dir="/hpf/largeprojects/agoldenb/lechang/")
 
-wandb.init(project="mri_gan_cancer", name=run_name)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=str, default=str(batch_size), metavar='N',
@@ -438,7 +441,9 @@ encoder = Encoder().to(device)
 
 # resize images to fit this size
 autoencoder = AutoEncoder(step=4).to(device)
-
+ae_checkpoint = torch.load(ae_dir)
+autoencoder.load_state_dict(ae_checkpoint['ae'])
+autoencoder.eval()
 
 wandb.watch((generator, discriminator1, discriminator2, encoder))
 
@@ -484,7 +489,8 @@ generator.train()
 discriminator1.train()
 discriminator2.train()
 encoder.train()
-autoencoder.eval()
+
+
 
 train(generator, discriminator1, discriminator2, encoder, autoencoder, g_optim, d1_optim, d2_optim, e_optim, step, iteration, startpoint,
                            used_sample, d1_losses, d2_losses, e_losses, g_losses, alpha)#, method="MDGAN")

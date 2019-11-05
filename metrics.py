@@ -87,10 +87,10 @@ class DomainFD:
 
         fd = (diff.dot(diff) + np.trace(sigma1) +
                 np.trace(sigma2) - 2 * tr_covmean)
-        print(diff.dot(diff))
-        print(np.trace(sigma1))
-        print(np.trace(sigma2))
-        print(tr_covmean, "=====")
+        # print(diff.dot(diff))
+        # print(np.trace(sigma1))
+        # print(np.trace(sigma2))
+        # print(tr_covmean, "=====")
 
         return fd
 
