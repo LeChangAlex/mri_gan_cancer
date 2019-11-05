@@ -53,7 +53,7 @@ base_lr = 0.001
 # Original Learning Rate
 learning_rate = {(25, 8): base_lr, (50, 16): base_lr, (100,32): base_lr, (200, 64): base_lr, (400, 128): base_lr, (800, 256): base_lr}
 if n_gpu == 1:
-    batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 16, (200, 64): 8, (400, 128): 4, (800, 256): 4}
+    batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 2, (200, 64): 1, (400, 128): 1, (800, 256): 1}
 if n_gpu == 2:
     batch_size = {(25, 8): 512, (50, 16): 512, (100, 32): 24, (200, 64): 16, (400, 128): 4, (800, 256): 4}
 elif n_gpu == 4:
@@ -72,7 +72,7 @@ dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
 # n_sample = 600_000
-n_sample = 10
+n_sample = 1
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
@@ -94,7 +94,10 @@ if n_gpu == 1 or n_gpu == 2:
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
 
-ae_dir = "./ae_checkpoints/ae-9600.pth"
+if n_gpu == 1:
+    ae_dir = "./ae_checkpoints/ae-9600.pth"
+else:
+    ae_dir = "./ae-9600.pth"
 
 # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 load_checkpoint = "no" # restart

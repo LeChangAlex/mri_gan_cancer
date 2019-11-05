@@ -645,7 +645,7 @@ class StyleBased_Generator(nn.Module):
             result = self.convs[i](result, current_latent, noise[i])
 
 
-        result_prev = self.to_rgbs[0](result)
+        result_prev = self.to_rgbs[step-1](result)
         if step == 0:
             return result_prev
 
