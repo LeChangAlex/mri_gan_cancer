@@ -645,9 +645,11 @@ class StyleBased_Generator(nn.Module):
             result = self.convs[i](result, current_latent, noise[i])
 
 
-        result_prev = self.to_rgbs[step-1](result)
         if step == 0:
+            result_prev = self.to_rgbs[step](result)
             return result_prev
+        result_prev = self.to_rgbs[step-1](result)
+
 
         result_prev = nn.functional.interpolate(result_prev, scale_factor=2, mode='bilinear',
                                                             align_corners=False)
