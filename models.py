@@ -2,10 +2,71 @@
 import torch
 import torch.nn as nn
 import math
+from torch.nn import Parameter
 
+def l2normalize(v, eps=1e-12):
+    return v / (v.norm() + eps)
 
 # Constraints
 # Input: [batch_size, in_channels, height, width]
+class SpectralReg(nn.Module):
+    def __init__(self, module, name='weight', power_iterations=1):
+        super(SpectralReg, self).__init__()
+        self.module = module
+        self.name = name
+        self.power_iterations = power_iterations
+        if not self._made_params():
+            self._make_params()
+
+    def _update_u_v(self):
+        u = getattr(self.module, self.name + "_u")
+        v = getattr(self.module, self.name + "_v")
+        # w = getattr(self.module, self.name + "_bar")
+        w = getattr(self.module, self.name + "_bar")
+
+        height = w.data.shape[0]
+        for _ in range(self.power_iterations):
+            v.data = l2normalize(torch.mv(torch.t(w.view(height,-1).data), u.data))
+            u.data = l2normalize(torch.mv(w.view(height,-1).data, v.data))
+
+        # sigma = torch.dot(u.data, torch.mv(w.view(height,-1).data, v.data))
+        sigma = u.dot(w.view(height, -1).mv(v))
+        setattr(self.module, self.name, w / sigma.expand_as(w))
+
+    def _made_params(self):
+        try:
+            u = getattr(self.module, self.name + "_u")
+            v = getattr(self.module, self.name + "_v")
+            w = getattr(self.module, self.name + "_bar")
+            return True
+        except AttributeError:
+            return False
+
+
+    def _make_params(self):
+        w = getattr(self.module, self.name + "_orig")
+
+        height = w.data.shape[0]
+        width = w.view(height, -1).data.shape[1]
+
+        u = Parameter(w.data.new(height).normal_(0, 1), requires_grad=False)
+        v = Parameter(w.data.new(width).normal_(0, 1), requires_grad=False)
+        u.data = l2normalize(u.data)
+        v.data = l2normalize(v.data)
+        w_bar = Parameter(w.data)
+
+        del self.module._parameters[self.name + "_orig"]
+
+        self.module.register_parameter(self.name + "_u", u)
+        self.module.register_parameter(self.name + "_v", v)
+        self.module.register_parameter(self.name + "_bar", w_bar)
+
+
+    def forward(self, *args):
+        self._update_u_v()
+        return self.module.forward(*args)
+
+
 
 class AESConv2d(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -246,7 +307,7 @@ def quick_scale(module, name='weight'):
 # "We initialize all weights of the convolutional, fully-connected, and affine transform layers using N(0, 1)"
 # 5/13: Apply scaled weights
 class SLinear(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, sr=False):
         super().__init__()
 
         linear = nn.Linear(dim_in, dim_out)
@@ -254,6 +315,9 @@ class SLinear(nn.Module):
         linear.bias.data.zero_()
 
         self.linear = quick_scale(linear)
+        if sr:
+            self.linear = SpectralReg(self.linear)
+
 
     def forward(self, x):
         return self.linear(x)
@@ -263,14 +327,16 @@ class SLinear(nn.Module):
 # "We initialize all weights of the convolutional, fully-connected, and affine transform layers using N(0, 1)"
 # 5/13: Apply scaled weights
 class SConv2d(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, sr=False):
         super().__init__()
-
-        conv = nn.Conv2d(*args, **kwargs)
+        conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
         conv.weight.data.normal_()
         conv.bias.data.zero_()
 
+
         self.conv = quick_scale(conv)
+        if sr:
+            self.conv = SpectralReg(self.conv)
 
     def forward(self, x):
         return self.conv(x)
@@ -363,6 +429,7 @@ class Early_StyleConv_Block(nn.Module):
         # Convolutional layer
         self.conv = SConv2d(n_channel, n_channel, 3, padding=1)
 
+
     def forward(self, latent_w, noise):
         # Gaussian Noise: Proxyed by generator
         # noise1 = torch.normal(mean=0,std=torch.ones(self.constant.shape)).cuda()
@@ -387,7 +454,7 @@ class StyleConv_Block(nn.Module):
     This is the general class of style-based convolutional blocks
     '''
 
-    def __init__(self, in_channel, out_channel, dim_latent):
+    def __init__(self, in_channel, out_channel, dim_latent, sr=False):
         super().__init__()
         # Style generators
         self.style1 = FC_A(dim_latent, out_channel)
@@ -401,6 +468,7 @@ class StyleConv_Block(nn.Module):
         # Convolutional layers
         self.conv1 = SConv2d(in_channel, out_channel, 3, padding=1)
         self.conv2 = SConv2d(out_channel, out_channel, 3, padding=1)
+
 
     def forward(self, previous_result, latent_w, noise):
         # Upsample: Proxyed by generator
@@ -451,7 +519,7 @@ class ConvBlock(nn.Module):
     '''
 
     def __init__(self, in_channel, out_channel, size_kernel1, padding1,
-                 size_kernel2=None, padding2=None, stride=(1, 1)):
+                 size_kernel2=None, padding2=None, stride=(1, 1), sr=False):
         super().__init__()
 
         if size_kernel2 == None:
@@ -460,11 +528,12 @@ class ConvBlock(nn.Module):
             padding2 = padding1
 
         self.conv = nn.Sequential(
-            SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride),
+            SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride, sr=sr),
             nn.LeakyReLU(0.2),
-            SConv2d(out_channel, out_channel, size_kernel2, padding=padding2),
+            SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr),
             nn.LeakyReLU(0.2)
         )
+
 
     def forward(self, image):
         # Conv
@@ -685,7 +754,7 @@ class Discriminator(nn.Module):
     Main Module
     '''
 
-    def __init__(self):
+    def __init__(self, sr=False):
         super().__init__()
         # Waiting to adjust the size
         self.from_rgbs = nn.ModuleList([
@@ -700,18 +769,19 @@ class Discriminator(nn.Module):
             SConv2d(1, 512, 1)
         ])
         self.convs = nn.ModuleList([
-            ConvBlock(16, 32, 3, 1, stride=(2, 2)),
-            ConvBlock(32, 64, 3, 1, stride=(2, 2)),
-            ConvBlock(64, 128, 3, 1, stride=(2, 2)),
-            ConvBlock(128, 256, 3, 1, stride=(2, 2)),
-            ConvBlock(256, 512, 3, 1, stride=(2, 2)),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2)),
-            ConvBlock(512, 512, 3, 1, (25, 8), 0)
+            ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, (25, 8), 0, sr=sr)
         ])
-        self.fc1 = SLinear(512, 512)
-        self.fc2 = SLinear(512, 1)
+
+        self.fc1 = SLinear(512, 512, sr=sr)
+        self.fc2 = SLinear(512, 1, sr=sr)
 
         self.n_layer = 9  # 9 layers network
 
