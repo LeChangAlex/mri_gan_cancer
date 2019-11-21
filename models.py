@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import math
+import numpy as np
 from torch.nn import Parameter
 
 def l2normalize(v, eps=1e-12):
@@ -14,55 +15,77 @@ class SpectralReg(nn.Module):
         super(SpectralReg, self).__init__()
         self.module = module
         self.name = name
-        self.power_iterations = power_iterations
+        # self.power_iterations = power_iterations
         if not self._made_params():
             self._make_params()
 
     def _update_u_v(self):
-        u = getattr(self.module, self.name + "_u")
-        v = getattr(self.module, self.name + "_v")
+        # u = getattr(self.module, self.name + "_u")
+        # v = getattr(self.module, self.name + "_v")
         # w = getattr(self.module, self.name + "_bar")
-        w = getattr(self.module, self.name + "_bar")
+        try:
+            w = getattr(self.module, self.name)
 
-        height = w.data.shape[0]
-        for _ in range(self.power_iterations):
-            v.data = l2normalize(torch.mv(torch.t(w.view(height,-1).data), u.data))
-            u.data = l2normalize(torch.mv(w.view(height,-1).data, v.data))
+            shape = w.shape
 
-        # sigma = torch.dot(u.data, torch.mv(w.view(height,-1).data, v.data))
-        sigma = u.dot(w.view(height, -1).mv(v))
-        setattr(self.module, self.name, w / sigma.expand_as(w))
+            height = w.data.shape[0]
+            w_mat = w.data.reshape(height, -1)
+            device = w_mat.device
 
+            U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
+
+            if len(s.shape) != 1:
+                raise Exception("s has more than 1 dim")
+
+            sigma1 = max(s)
+            s = s / sigma1
+            s[:s.shape[0] // 2] = 1
+
+            S = np.diag(s)
+
+            compensated_w = np.dot(U, np.dot(S, V))
+
+            w.data = torch.from_numpy(compensated_w).to(device).reshape(shape)
+
+            setattr(self.module, self.name, w)
+        except:
+            print("=================================")
     def _made_params(self):
         try:
-            u = getattr(self.module, self.name + "_u")
-            v = getattr(self.module, self.name + "_v")
-            w = getattr(self.module, self.name + "_bar")
+            # u = getattr(self.module, self.name + "_u")
+            # v = getattr(self.module, self.name + "_v")
+            w = getattr(self.module, self.name)
             return True
         except AttributeError:
             return False
 
 
     def _make_params(self):
+        # w = getattr(self.module, self.name + "_orig")
+        #
+        # height = w.data.shape[0]
+        # width = w.view(height, -1).data.shape[1]
+        #
+        # u = Parameter(w.data.new(height).normal_(0, 1), requires_grad=False)
+        # v = Parameter(w.data.new(width).normal_(0, 1), requires_grad=False)
+        # u.data = l2normalize(u.data)
+        # v.data = l2normalize(v.data)
+        # w_bar = Parameter(w.data)
+        #
+        # del self.module._parameters[self.name + "_orig"]
+        #
+        # self.module.register_parameter(self.name + "_u", u)
+        # self.module.register_parameter(self.name + "_v", v)
+
         w = getattr(self.module, self.name + "_orig")
 
-        height = w.data.shape[0]
-        width = w.view(height, -1).data.shape[1]
+        # del self.module._parameters[self.name + "_orig"]
 
-        u = Parameter(w.data.new(height).normal_(0, 1), requires_grad=False)
-        v = Parameter(w.data.new(width).normal_(0, 1), requires_grad=False)
-        u.data = l2normalize(u.data)
-        v.data = l2normalize(v.data)
-        w_bar = Parameter(w.data)
-
-        del self.module._parameters[self.name + "_orig"]
-
-        self.module.register_parameter(self.name + "_u", u)
-        self.module.register_parameter(self.name + "_v", v)
-        self.module.register_parameter(self.name + "_bar", w_bar)
+        self.module.register_parameter(self.name, w)
 
 
     def forward(self, *args):
+
         self._update_u_v()
         return self.module.forward(*args)
 
@@ -335,6 +358,7 @@ class SConv2d(nn.Module):
 
 
         self.conv = quick_scale(conv)
+
         if sr:
             self.conv = SpectralReg(self.conv)
 
@@ -758,15 +782,15 @@ class Discriminator(nn.Module):
         super().__init__()
         # Waiting to adjust the size
         self.from_rgbs = nn.ModuleList([
-            SConv2d(1, 16, 1),
-            SConv2d(1, 32, 1),
-            SConv2d(1, 64, 1),
-            SConv2d(1, 128, 1),
-            SConv2d(1, 256, 1),
-            SConv2d(1, 512, 1),
-            SConv2d(1, 512, 1),
-            SConv2d(1, 512, 1),
-            SConv2d(1, 512, 1)
+            SConv2d(1, 16, 1, sr=sr),
+            SConv2d(1, 32, 1, sr=sr),
+            SConv2d(1, 64, 1, sr=sr),
+            SConv2d(1, 128, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr)
         ])
         self.convs = nn.ModuleList([
             ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
