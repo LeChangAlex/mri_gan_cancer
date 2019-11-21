@@ -39,7 +39,7 @@ import argparse
 import json
 
 n_gpu = 1
-run_name = "MDGAN+DFD, lambda=0.01"
+run_name = "SR GAN"
 if n_gpu == 1:
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 if n_gpu == 2:
@@ -72,7 +72,7 @@ dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
 # n_sample = 600_000
-n_sample = 1
+n_sample = 400_000
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
