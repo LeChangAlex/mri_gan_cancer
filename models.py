@@ -16,29 +16,44 @@ class SpectralReg(nn.Module):
         self.module = module
         self.name = name
         # self.power_iterations = power_iterations
-        if not self._made_params():
-            self._make_params()
+        # if not self._made_params():
+        #     self._make_params()
 
     def _update_u_v(self):
         # u = getattr(self.module, self.name + "_u")
         # v = getattr(self.module, self.name + "_v")
         # w = getattr(self.module, self.name + "_bar")
         # try:
-        w = getattr(self.module, self.name)
-
+        w = getattr(self.module, self.name + "_orig")
+        # print(type(w), "-------")
         shape = w.shape
 
         height = w.data.shape[0]
         w_mat = w.data.reshape(height, -1)
         device = w_mat.device
 
-        print(w_mat.data.shape)
-        U, s, V = torch.svd(w_mat.data)
+        # svd with different runtimes
+
+        # U, s, V = torch.svd(w_mat.data.cpu())
+        # U, s, V = np.linalg.svd(w_mat.data.cpu())
+        # U = torch.from_numpy(s).to(device)
+        # s = torch.from_numpy(s).to(device)
+        # V = torch.from_numpy(s).to(device)
+        U, s, V = np.linalg.svd(w_mat.cpu(), full_matrices=False)
+
+        # U = torch.from_numpy(U).to(device)
+        # s = torch.from_numpy(s).to(device)
+        # V = torch.from_numpy(V).to(device)
+
+
 
         sigma1 = max(s)
         s = s / sigma1
         s[:s.shape[0] // 2] = 1
-        S = torch.diag(s)
+        S = np.diag(s)
+
+        # S = torch.diag(s)
+        compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
 
         # U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
         #
@@ -52,24 +67,24 @@ class SpectralReg(nn.Module):
         # S = np.diag(s)
         #
         # compensated_w = np.dot(U, np.dot(S, V))
-        compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
+        # compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
 
         w.data = compensated_w.reshape(shape)
 
         setattr(self.module, self.name, w)
         # except:
         #     print("=================================")
-    def _made_params(self):
-        try:
-            # u = getattr(self.module, self.name + "_u")
-            # v = getattr(self.module, self.name + "_v")
-            w = getattr(self.module, self.name)
-            return True
-        except AttributeError:
-            return False
+    # def _made_params(self):
+    #     try:
+    #         # u = getattr(self.module, self.name + "_u")
+    #         # v = getattr(self.module, self.name + "_v")
+    #         w = getattr(self.module, self.name)
+    #         return True
+    #     except AttributeError:
+    #         return False
 
 
-    def _make_params(self):
+    # def _make_params(self):
         # w = getattr(self.module, self.name + "_orig")
         #
         # height = w.data.shape[0]
@@ -86,11 +101,11 @@ class SpectralReg(nn.Module):
         # self.module.register_parameter(self.name + "_u", u)
         # self.module.register_parameter(self.name + "_v", v)
 
-        w = getattr(self.module, self.name + "_orig")
+        # w = getattr(self.module, self.name + "_orig")
 
         # del self.module._parameters[self.name + "_orig"]
 
-        self.module.register_parameter(self.name, w)
+        # self.module.register_parameter(self.name, w)
 
 
     def forward(self, *args):
