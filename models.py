@@ -23,33 +23,42 @@ class SpectralReg(nn.Module):
         # u = getattr(self.module, self.name + "_u")
         # v = getattr(self.module, self.name + "_v")
         # w = getattr(self.module, self.name + "_bar")
-        try:
-            w = getattr(self.module, self.name)
+        # try:
+        w = getattr(self.module, self.name)
 
-            shape = w.shape
+        shape = w.shape
 
-            height = w.data.shape[0]
-            w_mat = w.data.reshape(height, -1)
-            device = w_mat.device
+        height = w.data.shape[0]
+        w_mat = w.data.reshape(height, -1)
+        device = w_mat.device
 
-            U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
+        print(w_mat.data.shape)
+        U, s, V = torch.svd(w_mat.data)
 
-            if len(s.shape) != 1:
-                raise Exception("s has more than 1 dim")
+        sigma1 = max(s)
+        s = s / sigma1
+        s[:s.shape[0] // 2] = 1
+        S = torch.diag(s)
 
-            sigma1 = max(s)
-            s = s / sigma1
-            s[:s.shape[0] // 2] = 1
+        # U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
+        #
+        # if len(s.shape) != 1:
+        #     raise Exception("s has more than 1 dim")
+        #
+        # sigma1 = max(s)
+        # s = s / sigma1
+        # s[:s.shape[0] // 2] = 1
+        #
+        # S = np.diag(s)
+        #
+        # compensated_w = np.dot(U, np.dot(S, V))
+        compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
 
-            S = np.diag(s)
+        w.data = compensated_w.reshape(shape)
 
-            compensated_w = np.dot(U, np.dot(S, V))
-
-            w.data = torch.from_numpy(compensated_w).to(device).reshape(shape)
-
-            setattr(self.module, self.name, w)
-        except:
-            print("=================================")
+        setattr(self.module, self.name, w)
+        # except:
+        #     print("=================================")
     def _made_params(self):
         try:
             # u = getattr(self.module, self.name + "_u")
@@ -787,25 +796,25 @@ class Discriminator(nn.Module):
             SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 128, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
-            SConv2d(1, 512, 1, sr=sr),
-            SConv2d(1, 512, 1, sr=sr),
-            SConv2d(1, 512, 1, sr=sr),
-            SConv2d(1, 512, 1, sr=sr)
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr)
         ])
         self.convs = nn.ModuleList([
             ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 512, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(512, 512, 3, 1, (25, 8), 0, sr=sr)
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=sr)
         ])
 
-        self.fc1 = SLinear(512, 512, sr=sr)
-        self.fc2 = SLinear(512, 1, sr=sr)
+        self.fc1 = SLinear(256, 256, sr=sr)
+        self.fc2 = SLinear(256, 1, sr=sr)
 
         self.n_layer = 9  # 9 layers network
 
