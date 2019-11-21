@@ -552,7 +552,7 @@ class ConvBlock(nn.Module):
     '''
 
     def __init__(self, in_channel, out_channel, size_kernel1, padding1,
-                 size_kernel2=None, padding2=None, stride=(1, 1), sr=False):
+                 size_kernel2=None, padding2=None, stride=(1, 1), sr=False, sr_last=False):
         super().__init__()
 
         if size_kernel2 == None:
@@ -563,7 +563,7 @@ class ConvBlock(nn.Module):
         self.conv = nn.Sequential(
             SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride, sr=sr),
             nn.LeakyReLU(0.2),
-            SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr),
+            SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr_last),
             nn.LeakyReLU(0.2)
         )
 
@@ -810,7 +810,7 @@ class Discriminator(nn.Module):
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=sr)
+            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=False)
         ])
 
         self.fc1 = SLinear(256, 256, sr=sr)
