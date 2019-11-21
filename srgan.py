@@ -80,7 +80,7 @@ n_show_loss = 1
 n_save_im = 10
 n_checkpoint = 100
 step = 0  # Train from (8 * 8)
-max_step = 6
+max_step = 5
 style_mixing = []  # Waiting to implement
 
 if n_gpu == 1 or n_gpu == 2:
@@ -94,7 +94,7 @@ if n_gpu == 1 or n_gpu == 2:
 elif n_gpu == 4:
     save_checkpoints_path = "/hpf/largeprojects/agoldenb/lechang/" + run_name
 
-if n_gpu == 1:
+if n_gpu == 1 or n_gpu == 2:
     ae_dir = "./ae_checkpoints/ae-9600.pth"
 else:
     ae_dir = "./ae-9600.pth"
@@ -102,7 +102,7 @@ else:
 # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
 load_checkpoint = "no" # restart
 
-if n_gpu == 1:
+if n_gpu == 1 or n_gpu == 2:
     wandb.init(project="mri_gan_cancer", name=run_name)
 elif n_gpu == 4:
     wandb.init(project="mri_gan_cancer", name=run_name, dir="/hpf/largeprojects/agoldenb/lechang/")

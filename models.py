@@ -70,7 +70,7 @@ class SpectralReg(nn.Module):
         # compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
 
         w.data = compensated_w.reshape(shape)
-
+        # print("a")
         setattr(self.module, self.name, w)
         # except:
         #     print("=================================")
@@ -686,20 +686,43 @@ class StyleBased_Generator(nn.Module):
         super().__init__()
         # Waiting to adjust the size
         self.fcs = Intermediate_Generator(n_fc, dim_latent)
+        # self.convs = nn.ModuleList([
+        #     Early_StyleConv_Block(512, dim_latent, dim_input),
+        #     StyleConv_Block(512, 512, dim_latent),
+        #     StyleConv_Block(512, 512, dim_latent),
+        #     StyleConv_Block(512, 512, dim_latent),
+        #     StyleConv_Block(512, 256, dim_latent),
+        #     StyleConv_Block(256, 128, dim_latent),
+        #     StyleConv_Block(128, 64, dim_latent),
+        #     StyleConv_Block(64, 32, dim_latent),
+        #     StyleConv_Block(32, 16, dim_latent)
+        # ])
+        # self.to_rgbs = nn.ModuleList([
+        #     SConv2d(512, 1, 1),
+        #     SConv2d(512, 1, 1),
+        #     SConv2d(512, 1, 1),
+        #     SConv2d(512, 1, 1),
+        #     SConv2d(256, 1, 1),
+        #     SConv2d(128, 1, 1),
+        #     SConv2d(64, 1, 1),
+        #     SConv2d(32, 1, 1),
+        #     SConv2d(16, 1, 1)
+        # ])
+
         self.convs = nn.ModuleList([
             Early_StyleConv_Block(512, dim_latent, dim_input),
-            StyleConv_Block(512, 512, dim_latent),
-            StyleConv_Block(512, 512, dim_latent),
             StyleConv_Block(512, 512, dim_latent),
             StyleConv_Block(512, 256, dim_latent),
             StyleConv_Block(256, 128, dim_latent),
             StyleConv_Block(128, 64, dim_latent),
             StyleConv_Block(64, 32, dim_latent),
             StyleConv_Block(32, 16, dim_latent)
+            # StyleConv_Block(64, 32, dim_latent),
+            # StyleConv_Block(32, 16, dim_latent)
         ])
         self.to_rgbs = nn.ModuleList([
-            SConv2d(512, 1, 1),
-            SConv2d(512, 1, 1),
+            # SConv2d(512, 1, 1),
+            # SConv2d(512, 1, 1),
             SConv2d(512, 1, 1),
             SConv2d(512, 1, 1),
             SConv2d(256, 1, 1),
@@ -805,25 +828,48 @@ class Discriminator(nn.Module):
     def __init__(self, sr=False):
         super().__init__()
         # Waiting to adjust the size
+        # self.from_rgbs = nn.ModuleList([
+        #     SConv2d(1, 16, 1, sr=sr),
+        #     SConv2d(1, 32, 1, sr=sr),
+        #     SConv2d(1, 64, 1, sr=sr),
+        #     SConv2d(1, 128, 1, sr=sr),
+        #     SConv2d(1, 256, 1, sr=sr),
+        #     SConv2d(1, 256, 1, sr=sr),
+        #     SConv2d(1, 256, 1, sr=sr),
+        #     SConv2d(1, 256, 1, sr=sr),
+        #     SConv2d(1, 256, 1, sr=sr)
+        # ])
+        # self.convs = nn.ModuleList([
+        #     ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+        #     ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=False)
+        # ])
+
         self.from_rgbs = nn.ModuleList([
+            # SConv2d(1, 16, 1, sr=sr),
+            # SConv2d(1, 32, 1, sr=sr),
+            # SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 16, 1, sr=sr),
             SConv2d(1, 32, 1, sr=sr),
             SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 128, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
-            SConv2d(1, 256, 1, sr=sr),
-            SConv2d(1, 256, 1, sr=sr),
-            SConv2d(1, 256, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr)
         ])
         self.convs = nn.ModuleList([
+            # ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
+            # ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
+            # ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=False)
         ])
@@ -831,7 +877,9 @@ class Discriminator(nn.Module):
         self.fc1 = SLinear(256, 256, sr=sr)
         self.fc2 = SLinear(256, 1, sr=sr)
 
-        self.n_layer = 9  # 9 layers network
+        self.n_layer = 6  # 9 layers network
+
+        # self.n_layer = 9  # 9 layers network
 
     def forward(self, image,
                 step=0,  # Step means how many layers (count from 4 x 4) are used to train
@@ -900,6 +948,7 @@ class Discriminator(nn.Module):
         # Convert it into [batch, channel(512)], so the fully-connetced layer
         # could process it.
         result = result.squeeze(2).squeeze(2)
+
         result = self.fc1(result)
         result = self.fc2(result)
 
