@@ -25,52 +25,52 @@ class SpectralReg(nn.Module):
         # w = getattr(self.module, self.name + "_bar")
         # try:
         w = getattr(self.module, self.name + "_orig")
-        # # print(type(w), "-------")
-        # shape = w.shape
+        # print(type(w), "-------")
+        shape = w.shape
+
+        height = w.data.shape[0]
+        w_mat = w.data.reshape(height, -1)
+        device = w_mat.device
+
+        # svd with different runtimes
+
+        # U, s, V = torch.svd(w_mat.data.cpu())
+        # U, s, V = np.linalg.svd(w_mat.data.cpu())
+        # U = torch.from_numpy(s).to(device)
+        # s = torch.from_numpy(s).to(device)
+        # V = torch.from_numpy(s).to(device)
+        U, s, V = np.linalg.svd(w_mat.cpu(), full_matrices=False)
+
+        # U = torch.from_numpy(U).to(device)
+        # s = torch.from_numpy(s).to(device)
+        # V = torch.from_numpy(V).to(device)
+
+
+
+        sigma1 = max(s)
+        s = s / sigma1
+        s[:s.shape[0] // 2] = 1
+        S = np.diag(s)
+
+        # S = torch.diag(s)
+        compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
+
+        # U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
         #
-        # height = w.data.shape[0]
-        # w_mat = w.data.reshape(height, -1)
-        # device = w_mat.device
-        #
-        # # svd with different runtimes
-        #
-        # # U, s, V = torch.svd(w_mat.data.cpu())
-        # # U, s, V = np.linalg.svd(w_mat.data.cpu())
-        # # U = torch.from_numpy(s).to(device)
-        # # s = torch.from_numpy(s).to(device)
-        # # V = torch.from_numpy(s).to(device)
-        # U, s, V = np.linalg.svd(w_mat.cpu(), full_matrices=False)
-        #
-        # # U = torch.from_numpy(U).to(device)
-        # # s = torch.from_numpy(s).to(device)
-        # # V = torch.from_numpy(V).to(device)
-        #
-        #
+        # if len(s.shape) != 1:
+        #     raise Exception("s has more than 1 dim")
         #
         # sigma1 = max(s)
         # s = s / sigma1
         # s[:s.shape[0] // 2] = 1
+        #
         # S = np.diag(s)
         #
-        # # S = torch.diag(s)
-        # compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
-        #
-        # # U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
-        # #
-        # # if len(s.shape) != 1:
-        # #     raise Exception("s has more than 1 dim")
-        # #
-        # # sigma1 = max(s)
-        # # s = s / sigma1
-        # # s[:s.shape[0] // 2] = 1
-        # #
-        # # S = np.diag(s)
-        # #
-        # # compensated_w = np.dot(U, np.dot(S, V))
-        # # compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
-        #
-        # w.data = compensated_w.reshape(shape)
-        # # print("a")
+        # compensated_w = np.dot(U, np.dot(S, V))
+        # compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
+
+        w.data = compensated_w.reshape(shape)
+        # print("a")
         setattr(self.module, self.name, w)
         # except:
         #     print("=================================")
@@ -109,8 +109,8 @@ class SpectralReg(nn.Module):
 
 
     def forward(self, *args):
-        # with torch.no_grad():
-        #     self._update_u_v()
+        with torch.no_grad():
+            self._update_u_v()
         return self.module.forward(*args)
 
 
