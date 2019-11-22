@@ -38,7 +38,7 @@ def get_args():
                         help='')
     parser.add_argument('--run_name', type=str, default="SR GAN", metavar='N',
                         help='')
-    parser.add_argument('--batch-size', type=str, default=batch_size, metavar='N',
+    parser.add_argument('--batch_size', type=str, default=batch_size, metavar='N',
                          help='')
     parser.add_argument('--lr', type=float, default=0.001, metavar='N',
                          help='')
