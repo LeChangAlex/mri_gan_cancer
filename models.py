@@ -15,22 +15,28 @@ class SpectralReg(nn.Module):
         super(SpectralReg, self).__init__()
         self.module = module
         self.name = name
-        # self.power_iterations = power_iterations
-        # if not self._made_params():
-        #     self._make_params()
-
-    def _update_u_v(self):
-        # u = getattr(self.module, self.name + "_u")
-        # v = getattr(self.module, self.name + "_v")
-        # w = getattr(self.module, self.name + "_bar")
-        # try:
         w = getattr(self.module, self.name + "_orig")
-        # print(type(w), "-------")
+        setattr(self.module, self.name, w)
+
+
+    def update_w(self):
+
+        w = getattr(self.module, self.name)
+
         shape = w.shape
 
         height = w.data.shape[0]
         w_mat = w.data.reshape(height, -1)
         device = w_mat.device
+
+        U, s, V = np.linalg.svd(w_mat.cpu(), full_matrices=False)
+
+        sigma1 = max(s)
+        s = s / sigma1
+        s[:s.shape[0] // 2] = 1
+        S = np.diag(s)
+        compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
+        w.data = compensated_w.reshape(shape)
 
         # svd with different runtimes
 
@@ -39,21 +45,10 @@ class SpectralReg(nn.Module):
         # U = torch.from_numpy(s).to(device)
         # s = torch.from_numpy(s).to(device)
         # V = torch.from_numpy(s).to(device)
-        U, s, V = np.linalg.svd(w_mat.cpu(), full_matrices=False)
 
         # U = torch.from_numpy(U).to(device)
         # s = torch.from_numpy(s).to(device)
         # V = torch.from_numpy(V).to(device)
-
-
-
-        sigma1 = max(s)
-        s = s / sigma1
-        s[:s.shape[0] // 2] = 1
-        S = np.diag(s)
-
-        # S = torch.diag(s)
-        compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
 
         # U, s, V = np.linalg.svd(w_mat.data.detach().cpu(), full_matrices=False)
         #
@@ -69,48 +64,11 @@ class SpectralReg(nn.Module):
         # compensated_w = np.dot(U, np.dot(S, V))
         # compensated_w = torch.mm(U, torch.mm(S, V.transpose(0, 1)))
 
-        w.data = compensated_w.reshape(shape)
-        # print("a")
         setattr(self.module, self.name, w)
-        # except:
-        #     print("=================================")
-    # def _made_params(self):
-    #     try:
-    #         # u = getattr(self.module, self.name + "_u")
-    #         # v = getattr(self.module, self.name + "_v")
-    #         w = getattr(self.module, self.name)
-    #         return True
-    #     except AttributeError:
-    #         return False
 
-
-    # def _make_params(self):
-        # w = getattr(self.module, self.name + "_orig")
-        #
-        # height = w.data.shape[0]
-        # width = w.view(height, -1).data.shape[1]
-        #
-        # u = Parameter(w.data.new(height).normal_(0, 1), requires_grad=False)
-        # v = Parameter(w.data.new(width).normal_(0, 1), requires_grad=False)
-        # u.data = l2normalize(u.data)
-        # v.data = l2normalize(v.data)
-        # w_bar = Parameter(w.data)
-        #
-        # del self.module._parameters[self.name + "_orig"]
-        #
-        # self.module.register_parameter(self.name + "_u", u)
-        # self.module.register_parameter(self.name + "_v", v)
-
-        # w = getattr(self.module, self.name + "_orig")
-
-        # del self.module._parameters[self.name + "_orig"]
-
-        # self.module.register_parameter(self.name, w)
 
 
     def forward(self, *args):
-        with torch.no_grad():
-            self._update_u_v()
         return self.module.forward(*args)
 
 
@@ -380,6 +338,7 @@ class SConv2d(nn.Module):
         conv.weight.data.normal_()
         conv.bias.data.zero_()
 
+        self.sr = sr
 
         self.conv = quick_scale(conv)
 
@@ -575,17 +534,17 @@ class ConvBlock(nn.Module):
         if padding2 == None:
             padding2 = padding1
 
-        self.conv = nn.Sequential(
-            SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride, sr=sr),
-            nn.LeakyReLU(0.2),
-            SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr_last),
-            nn.LeakyReLU(0.2)
-        )
+
+        self.conv1 = SConv2d(in_channel, out_channel, size_kernel1, padding=padding1, stride=stride, sr=sr)
+        self.conv2 = SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr_last)
+        self.lrelu = nn.LeakyReLU(0.2)
 
 
     def forward(self, image):
         # Conv
-        result = self.conv(image)
+        A = self.conv1(image)
+        result = self.lrelu(self.conv1(image))
+        result = self.lrelu(self.conv2(result))
         return result
 
 
@@ -871,7 +830,7 @@ class Discriminator(nn.Module):
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=False)
+            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=sr)
         ])
 
         self.fc1 = SLinear(256, 256, sr=sr)
@@ -880,6 +839,29 @@ class Discriminator(nn.Module):
         self.n_layer = 6  # 9 layers network
 
         # self.n_layer = 9  # 9 layers network
+
+    def update_sr(self, step, alpha):
+
+        # update from_rgb conv layer
+        if step == 0:
+            self.from_rgbs[-1].conv.update_w()
+        elif alpha == 1:
+            self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+        else:
+            self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+            self.from_rgbs[self.n_layer - step].conv.update_w()
+
+        # update other conv layers
+
+        for i in range(self.n_layer - step, self.n_layer):
+            if isinstance(self.convs[i].conv1.conv, SpectralReg):
+                self.convs[i].conv1.conv.update_w()
+            if isinstance(self.convs[i].conv2.conv, SpectralReg):
+                self.convs[i].conv2.conv.update_w()
+
+        self.fc1.linear.update_w()
+        self.fc2.linear.update_w()
+
 
     def forward(self, image,
                 step=0,  # Step means how many layers (count from 4 x 4) are used to train

@@ -142,7 +142,10 @@ def discriminate(discriminator, real_image, step, alpha, n_gpu):
     if args.n_gpu > 1:
         predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha), range(n_gpu))
     else:
+
+        discriminator.update_sr(step, alpha)
         predict = discriminator(real_image, step, alpha)
+
     return predict
 
 
