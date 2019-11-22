@@ -204,9 +204,9 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
     while used_sample < n_sample_total:
 
         iteration += 1
-        alpha = min(1, alpha + batch_size[step] / (n_sample))
+        alpha = min(1, alpha + batch_size[step] / (args.n_sample))
 
-        if (used_sample - startpoint) > n_sample and step < max_step:
+        if (used_sample - startpoint) > args.n_sample and step < max_step:
             step += 1
             print("Now on step", step)
             alpha = 0
