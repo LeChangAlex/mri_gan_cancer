@@ -142,8 +142,6 @@ def discriminate(discriminator, real_image, step, alpha, n_gpu):
     if args.n_gpu > 1:
         predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha), range(n_gpu))
     else:
-
-        discriminator.update_sr(step, alpha)
         predict = discriminator(real_image, step, alpha)
 
     return predict
@@ -241,6 +239,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         # Send image to GPU
         real_image = real_image.to(device)
 
+
         real_predict = discriminate(discriminator, real_image, step, alpha, args.n_gpu)
         real_loss = nn.functional.softplus(-real_predict).mean()
 
@@ -255,6 +254,10 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         d_optim.zero_grad()
         d_loss.backward()
         d_optim.step()
+
+        # Spectral Regularization after gradient step
+        discriminator.update_w()
+
 
         del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss
 
