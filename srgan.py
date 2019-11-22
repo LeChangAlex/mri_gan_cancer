@@ -39,12 +39,10 @@ import argparse
 import json
 from arguments import get_args
 
-run_name = "SR GAN"
 
 
 device = torch.device('cuda:0')
 
-# Original Learning Rate
 
 
 
@@ -59,7 +57,6 @@ dim_latent = 512
 dim_input = (25, 8)
 # number of samples to show before doubling resolution
 # n_sample = 600_000
-n_sample = 1
 # number of samples train model in total
 n_sample_total = 10_000_000
 DGR = 1
@@ -78,7 +75,7 @@ learning_rate = 0.001
 args = get_args()
 batch_size = [int(bs) for bs in args.batch_size.split(",")]
 
-wandb.init(project="mri_gan_cancer", name=run_name, dir=args.wandb_dir)
+wandb.init(project="mri_gan_cancer", name=args.run_name, dir=args.wandb_dir)
 
 wandb.config.update(args) # adds all of the arguments as config variables
 

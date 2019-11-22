@@ -34,13 +34,14 @@ def get_args():
     load_checkpoint = "no"  # restart
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--n_gpu', type=int, default=1, metavar='N',
+                        help='')
     parser.add_argument('--run_name', type=str, default="SR GAN", metavar='N',
                         help='')
     parser.add_argument('--batch-size', type=str, default=batch_size, metavar='N',
                          help='')
     parser.add_argument('--lr', type=float, default=0.001, metavar='N',
                          help='')
-
     parser.add_argument('--data_path', type=str, default="./data", metavar='N',
                          help='')
     parser.add_argument('--g_z_path', type=str, default="./g_z/", metavar='N',
@@ -55,8 +56,9 @@ def get_args():
                          help='')
     parser.add_argument('--wandb_dir', type=str, default="./wandb", metavar='N',
                          help='')
-    parser.add_argument('--n_gpu', type=int, default=1, metavar='N',
+    parser.add_argument('--n_sample', type=int, default=1, metavar='N',
                         help='')
+
     parser.add_argument('--ae_dir', type=str, default="./ae_checkpoints/ae-9600.pth", metavar='N',
                         help='')
 
