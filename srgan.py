@@ -256,7 +256,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         d_optim.step()
 
         # Spectral Regularization after gradient step
-        discriminator.update_w()
+        discriminator.update_sr(step, alpha)
 
 
         del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss
