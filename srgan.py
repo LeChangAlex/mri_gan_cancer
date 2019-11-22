@@ -290,7 +290,6 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
 
         if iteration % n_checkpoint == 0:
-            os.makedirs(args.save_checkpoints_path, exist_ok=True)
             # Save the model every 50 iterations
             torch.save({
                 'generator': generator.state_dict(),
@@ -301,8 +300,8 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
                 'd_losses': d_losses,
                 'g_losses': g_losses,
 
-            }, f'{args.save_checkpoints_path}/trained-{iteration}.pth')
-            wandb.save(f'{args.save_checkpoints_path}/trained-{iteration}.pth')
+            }, f'{args.save_checkpoints}/trained-{iteration}.pth')
+            wandb.save(f'{args.save_checkpoints}/trained-{iteration}.pth')
             print(f' Model successfully saved.')
 
 

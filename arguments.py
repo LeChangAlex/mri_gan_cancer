@@ -2,17 +2,7 @@ import argparse
 import os
 
 def get_args():
-    # if args.n_gpu == 1:
-    #     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    # if args.n_gpu == 2:
-    #     os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
-    # if args.n_gpu == 4:
-    #     os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
-    # if n_gpu == 1 or n_gpu == 2:
-    #     data_path = "./data"
-    # elif n_gpu == 4:
-    #     data_path = "./data"
-    #
+
     # save_im_path = "./g_z/" + run_name
     # if n_gpu == 1 or n_gpu == 2:
     #     save_checkpoints_path = "./checkpoints/" + run_name
@@ -31,7 +21,6 @@ def get_args():
     # elif args.n_gpu == 4:
     #     batch_size = {(25, 8): 512, (50, 16): 360, (100, 32): 360, (200, 64): 72, (400, 128): 32, (800, 256): 6}
 
-    # save_im_path = "./g_z/" + run_name
 
     # batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 2, (200, 64): 2, (400, 128): 2, (800, 256): 2}
     batch_size="64,32,2,2,2,2,2"
@@ -54,9 +43,9 @@ def get_args():
 
     parser.add_argument('--data_path', type=str, default="./data", metavar='N',
                          help='')
-    parser.add_argument('--g_z_path', type=str, default=save_im_path, metavar='N',
+    parser.add_argument('--g_z_path', type=str, default="./g_z/", metavar='N',
                          help='')
-    parser.add_argument('--checkpoints_path', type=str, default=save_checkpoints_path, metavar='N',
+    parser.add_argument('--save_checkpoints', type=str, default="./checkpoints/", metavar='N',
                          help='')
     parser.add_argument('--load_checkpoint', type=str, default="", metavar='N',
                          help='')
@@ -73,6 +62,15 @@ def get_args():
 
     args = parser.parse_args()
 
-    os.makedirs(args.g_z_path, exist_ok=True)
-    os.makedirs(args.checkpoints_path, exist_ok=True)
+    os.makedirs(args.g_z_path + args.run_name, exist_ok=True)
+    os.makedirs(args.checkpoints_path + args.run_name, exist_ok=True)
+    os.makedirs(args.save_checkpoints + args.run_name, exist_ok=True)
+
+    if args.n_gpu == 1:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    if args.n_gpu == 2:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1'
+    if args.n_gpu == 4:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
+
     return args
