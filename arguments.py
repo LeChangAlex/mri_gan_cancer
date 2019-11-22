@@ -63,7 +63,6 @@ def get_args():
     args = parser.parse_args()
 
     os.makedirs(args.g_z_path + args.run_name, exist_ok=True)
-    os.makedirs(args.checkpoints_path + args.run_name, exist_ok=True)
     os.makedirs(args.save_checkpoints + args.run_name, exist_ok=True)
 
     if args.n_gpu == 1:
