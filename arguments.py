@@ -58,7 +58,8 @@ def get_args():
                          help='')
     parser.add_argument('--n_sample', type=int, default=1, metavar='N',
                         help='')
-
+    parser.add_argument('--spectral_reg', type=bool, default=True, metavar='N',
+                        help='')
     parser.add_argument('--ae_dir', type=str, default="./ae_checkpoints/ae-9600.pth", metavar='N',
                         help='')
 
