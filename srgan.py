@@ -38,7 +38,7 @@ import wandb
 import argparse
 import json
 from arguments import get_args
-
+from torchvision.utils import save_image
 
 
 device = torch.device('cuda:0')
@@ -124,6 +124,7 @@ def gain_sample(batch_size, image_size=(25,8)):
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
+    save_image(tensor, args.g_z_path + "step {}.png".format(i), nrow=1, padding=0, normalize=True)
 
 
 def sample_data(data_loader, origin_loader):
@@ -305,8 +306,8 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
                 'd_losses': d_losses,
                 'g_losses': g_losses,
 
-            }, f'{args.save_checkpoints}/trained-{iteration}.pth')
-            wandb.save(f'{args.save_checkpoints}/trained-{iteration}.pth')
+            }, f'{args.save_checkpoints + args.run_name}/trained-{iteration}.pth')
+            wandb.save(f'{args.save_checkpoints + args.run_name}/trained-{iteration}.pth')
             print(f' Model successfully saved.')
 
 

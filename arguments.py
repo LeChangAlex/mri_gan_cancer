@@ -26,9 +26,9 @@ def get_args():
     batch_size="360,180,90,36,20,12"
 
 
-    run_name = "SR GAN"
-    save_im_path = "./g_z/" + run_name
-    save_checkpoints_path = "./checkpoints/" + run_name
+    # run_name = "SR GAN"
+    # save_im_path = "./g_z/" + run_name
+    # save_checkpoints_path = "./checkpoints/" + run_name
 
     # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
     load_checkpoint = "no"  # restart
