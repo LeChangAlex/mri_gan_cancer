@@ -26,6 +26,7 @@ class SpectralReg(nn.Module):
         shape = w.shape
 
         height = w.data.shape[0]
+
         w_mat = w.data.reshape(height, -1)
         device = w_mat.device
 
@@ -542,7 +543,6 @@ class ConvBlock(nn.Module):
 
     def forward(self, image):
         # Conv
-        A = self.conv1(image)
         result = self.lrelu(self.conv1(image))
         result = self.lrelu(self.conv2(result))
         return result
@@ -761,6 +761,7 @@ class StyleBased_Generator(nn.Module):
 
         result = (1 - alpha) * result_prev + alpha * result
 
+        result = nn.functional.sigmoid(result)
 
         return result
 
@@ -809,7 +810,7 @@ class Discriminator(nn.Module):
         #     ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
         #     ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=False)
         # ])
-
+        self.lrelu = nn.LeakyReLU(0.2)
         self.from_rgbs = nn.ModuleList([
             # SConv2d(1, 16, 1, sr=sr),
             # SConv2d(1, 32, 1, sr=sr),
@@ -871,7 +872,7 @@ class Discriminator(nn.Module):
         if step == 0:
             result = self.from_rgbs[self.n_layer - 1](image)
             result = self.convs[self.n_layer - 1](result)
-
+            result = self.lrelu(result)
         else:
             # from RGB of current step
             result = self.from_rgbs[self.n_layer - 1 - step](image)
@@ -883,6 +884,7 @@ class Discriminator(nn.Module):
             result_prev = self.from_rgbs[self.n_layer - step](half_res_im)
 
             result = alpha * result + (1 - alpha) * result_prev
+            result = self.lrelu(result)
 
             for i in range(self.n_layer - step, self.n_layer):
                 # Conv
@@ -932,6 +934,7 @@ class Discriminator(nn.Module):
         result = result.squeeze(2).squeeze(2)
 
         result = self.fc1(result)
+        result = self.lrelu(result)
         result = self.fc2(result)
 
         return result

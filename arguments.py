@@ -23,7 +23,7 @@ def get_args():
 
 
     # batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 2, (200, 64): 2, (400, 128): 2, (800, 256): 2}
-    batch_size="64,32,2,2,2,2,2"
+    batch_size="360,180,90,36,20,12"
 
 
     run_name = "SR GAN"
@@ -56,13 +56,14 @@ def get_args():
                          help='')
     parser.add_argument('--wandb_dir', type=str, default="./wandb", metavar='N',
                          help='')
-    parser.add_argument('--n_sample', type=int, default=1, metavar='N',
+    parser.add_argument('--n_sample', type=int, default=600_000, metavar='N',
                         help='')
     parser.add_argument('--spectral_reg', action='store_true')
     parser.add_argument('--ae_dir', type=str, default="./ae_checkpoints/ae-9600.pth", metavar='N',
                         help='')
 
     args = parser.parse_args()
+    print(args.spectral_reg)
 
     os.makedirs(args.g_z_path + args.run_name, exist_ok=True)
     os.makedirs(args.save_checkpoints + args.run_name, exist_ok=True)
