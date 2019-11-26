@@ -34,7 +34,7 @@ class SpectralReg(nn.Module):
 
         sigma1 = max(s)
         s = s / sigma1
-        s[:s.shape[0] // 2] = 1
+        # s[:s.shape[0] // 2] = 1
         S = np.diag(s)
         compensated_w = torch.from_numpy(np.dot(U, np.dot(S, V))).to(device)
         w.data = compensated_w.reshape(shape)
@@ -761,7 +761,7 @@ class StyleBased_Generator(nn.Module):
 
         result = (1 - alpha) * result_prev + alpha * result
 
-        result = nn.functional.sigmoid(result)
+        # result = nn.functional.sigmoid(result
 
         return result
 
