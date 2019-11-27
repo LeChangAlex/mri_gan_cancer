@@ -62,7 +62,7 @@ n_sample_total = 10_000_000
 DGR = 1
 n_show_loss = 1
 n_save_im = 10
-n_checkpoint = 100
+n_checkpoint = 1000
 step = 0  # Train from (8 * 8)
 max_step = 5
 style_mixing = []  # Waiting to implement
@@ -124,7 +124,7 @@ def gain_sample(batch_size, image_size=(25,8)):
 f = plt.figure()
 def imsave(tensor, i):
     wandb.log({"G(z)":[wandb.Image(tensor[i][0], mode="F") for i in range(min(tensor.shape[0], 10))]}, step=i)
-    save_image(tensor, args.g_z_path + "step {}.png".format(i), nrow=1, padding=0, normalize=True)
+    save_image(tensor, os.path.join(args.g_z_path, args.run_name, "step {}.png".format(i)), nrow=1, padding=0, normalize=True)
 
 
 def sample_data(data_loader, origin_loader):
@@ -233,6 +233,8 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         # D Update
         real_image = sample_data(data_loader, origin_loader)
 
+
+
         # Count used sample
         used_sample += real_image.shape[0]
         progress_bar.update(real_image.shape[0])
@@ -258,8 +260,6 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         d_optim.zero_grad()
         d_loss.backward()
         d_optim.step()
-
-
 
 
         del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss

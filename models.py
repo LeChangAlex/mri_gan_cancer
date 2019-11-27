@@ -761,8 +761,6 @@ class StyleBased_Generator(nn.Module):
 
         result = (1 - alpha) * result_prev + alpha * result
 
-        # result = nn.functional.sigmoid(result
-
         return result
 
     def center_w(self, zs):
@@ -876,61 +874,21 @@ class Discriminator(nn.Module):
         else:
             # from RGB of current step
             result = self.from_rgbs[self.n_layer - 1 - step](image)
+            result = self.lrelu(result)
             result = self.convs[self.n_layer - 1 - step](result)
-
 
             half_res_im = nn.functional.interpolate(image, scale_factor=0.5,
                                                     mode='bilinear', align_corners=False)
             result_prev = self.from_rgbs[self.n_layer - step](half_res_im)
+            result_prev = self.lrelu(result_prev)
 
             result = alpha * result + (1 - alpha) * result_prev
-            result = self.lrelu(result)
 
             for i in range(self.n_layer - step, self.n_layer):
                 # Conv
                 result = self.convs[i](result)
 
 
-        # for i in range(step, -1, -1):
-        #     # Get the index of current layer
-        #     # Count from the bottom layer (4 * 4)
-        #     layer_index = self.n_layer - i - 1
-        #
-        #     # First layer, need to use from_rgb to convert to n_channel data
-        #     if i == step:
-        #         result = self.from_rgbs[layer_index](image)
-        #
-        #     # # Before final layer, do minibatch stddev
-        #     # if i == 0:
-        #     #     # In dim: [batch, channel(512), 4, 4]
-        #     #     res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
-        #     #     # Out dim: [channel(512), 4, 4]
-        #     #     res_std = torch.sqrt(res_var)
-        #     #     # Out dim: [channel(512), 4, 4]
-        #     #     mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
-        #     #     # Out dim: [1] -> [batch, 1, 4, 4]
-        #     #     result = torch.cat([result, mean_std], 1)
-        #     #     # Out dim: [batch, 512 + 1, 4, 4]
-        #
-        #     # Conv
-        #     result = self.convs[layer_index](result)
-        #
-        #     # Not the final layer
-        #     if i > 0:
-        #         # Downsample for further usage
-        #         # result = nn.functional.interpolate(result, scale_factor=0.5, mode='bilinear',
-        #         #                                    align_corners=False)
-        #         # Alpha set, combine the result of different layers when input
-        #         if i == step and 0 <= alpha < 1:
-        #             result_next = self.from_rgbs[layer_index + 1](image)
-        #             result_next = nn.functional.interpolate(result_next, scale_factor=0.5,
-        #                                                     mode='bilinear', align_corners=False)
-        #             # print(result.shape, result_next.shape)
-        #             result = alpha * result + (1 - alpha) * result_next
-
-        # Now, result is [batch, channel(512), 1, 1]
-        # Convert it into [batch, channel(512)], so the fully-connetced layer
-        # could process it.
         result = result.squeeze(2).squeeze(2)
 
         result = self.fc1(result)
