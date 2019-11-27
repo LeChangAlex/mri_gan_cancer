@@ -820,12 +820,12 @@ class Discriminator(nn.Module):
             ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, (25, 8), 0, sr=sr)
+            ConvBlock(256, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, (25, 8), 0, sr=sr)
         ])
 
-        self.fc1 = SLinear(256, 256, sr=sr)
-        self.fc2 = SLinear(256, 1, sr=sr)
+        self.fc1 = SLinear(512, 512, sr=sr)
+        self.fc2 = SLinear(512, 1, sr=sr)
 
         self.n_layer = 6  # 9 layers network
 
