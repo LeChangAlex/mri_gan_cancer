@@ -810,7 +810,7 @@ class Discriminator(nn.Module):
             SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 128, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
-            SConv2d(1, 256, 1, sr=sr)
+            SConv2d(1, 512, 1, sr=sr)
         ])
         self.convs = nn.ModuleList([
             # ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
