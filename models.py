@@ -672,10 +672,10 @@ class StyleBased_Generator(nn.Module):
             Early_StyleConv_Block(512, dim_latent, dim_input),
             StyleConv_Block(512, 512, dim_latent),
             StyleConv_Block(512, 256, dim_latent),
+            StyleConv_Block(512, 512, dim_latent),
+            StyleConv_Block(512, 256, dim_latent),
             StyleConv_Block(256, 128, dim_latent),
-            StyleConv_Block(128, 64, dim_latent),
-            StyleConv_Block(64, 32, dim_latent),
-            StyleConv_Block(32, 16, dim_latent)
+            StyleConv_Block(128, 64, dim_latent)
             # StyleConv_Block(64, 32, dim_latent),
             # StyleConv_Block(32, 16, dim_latent)
         ])
@@ -684,11 +684,11 @@ class StyleBased_Generator(nn.Module):
             # SConv2d(512, 1, 1),
             SConv2d(512, 1, 1),
             SConv2d(512, 1, 1),
+            SConv2d(512, 1, 1),
+            SConv2d(512, 1, 1),
             SConv2d(256, 1, 1),
             SConv2d(128, 1, 1),
-            SConv2d(64, 1, 1),
-            SConv2d(32, 1, 1),
-            SConv2d(16, 1, 1)
+            SConv2d(64, 1, 1)
         ])
 
     def forward(self, latent_z,
@@ -802,25 +802,22 @@ class Discriminator(nn.Module):
         # ])
         self.lrelu = nn.LeakyReLU(0.2)
         self.from_rgbs = nn.ModuleList([
-            # SConv2d(1, 16, 1, sr=sr),
-            # SConv2d(1, 32, 1, sr=sr),
-            # SConv2d(1, 64, 1, sr=sr),
-            SConv2d(1, 16, 1, sr=sr),
-            SConv2d(1, 32, 1, sr=sr),
             SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 128, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr),
+            SConv2d(1, 512, 1, sr=sr),
             SConv2d(1, 512, 1, sr=sr)
         ])
         self.convs = nn.ModuleList([
             # ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
             # ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             # ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(512, 512, 3, 1, (25, 8), 0, sr=sr)
         ])
 
