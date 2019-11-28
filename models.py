@@ -671,7 +671,7 @@ class StyleBased_Generator(nn.Module):
         self.convs = nn.ModuleList([
             Early_StyleConv_Block(512, dim_latent, dim_input),
             StyleConv_Block(512, 512, dim_latent),
-            StyleConv_Block(512, 256, dim_latent),
+            StyleConv_Block(512, 512, dim_latent),
             StyleConv_Block(512, 512, dim_latent),
             StyleConv_Block(512, 256, dim_latent),
             StyleConv_Block(256, 128, dim_latent),
