@@ -23,12 +23,12 @@ def get_args():
 
 
     # batch_size = {(25, 8): 64, (50, 16): 32, (100, 32): 2, (200, 64): 2, (400, 128): 2, (800, 256): 2}
-    batch_size="360,180,90,36,20,8"
+    batch_size="360,180,90,36,20,10"
 
 
-    # run_name = "SR GAN"
-    # save_im_path = "./g_z/" + run_name
-    # save_checkpoints_path = "./checkpoints/" + run_name
+    run_name = "SR GAN"
+    save_im_path = "./g_z/" + run_name
+    save_checkpoints_path = "./checkpoints/" + run_name
 
     # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/trained-1600.pth"
     load_checkpoint = "no"  # restart
@@ -63,7 +63,6 @@ def get_args():
                         help='')
 
     args = parser.parse_args()
-    print(args.spectral_reg)
 
     os.makedirs(args.g_z_path + args.run_name, exist_ok=True)
     os.makedirs(args.save_checkpoints + args.run_name, exist_ok=True)

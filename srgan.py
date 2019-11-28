@@ -111,7 +111,7 @@ def reset_LR(optimizer, lr):
 
 
 # Gain sample
-def gain_sample(batch_size, image_size=(25,8)):
+def gain_sample(batch_size, image_size=(25, 8)):
     loader = DataLoader(MRIDataset(
         csv_file="./annotations_slices_medium.csv",
         root_dir=args.data_path,
@@ -232,7 +232,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
         # D Update
         real_image = sample_data(data_loader, origin_loader)
-
+        real_image.requires_grad = True
 
 
         # Count used sample
@@ -250,19 +250,25 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         real_loss = nn.functional.softplus(-real_predict).mean()
 
 
+
         fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
         fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
 
         fake_loss = nn.functional.softplus(fake_predict).mean()
 
-        d_loss = real_loss + fake_loss
+        d_loss = (real_loss + fake_loss).item()
+
+        grad_real = torch.autograd.grad(outputs=real_loss.sum(), inputs=real_image, create_graph=True)[0]
+        grad_penalty_real = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
+        grad_penalty_real = 10 / 2 * grad_penalty_real
 
         d_optim.zero_grad()
-        d_loss.backward()
+        real_loss.backward(retain_graph=True)
+        fake_loss.backward()
+        grad_penalty_real.backward()
         d_optim.step()
 
-
-        del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss
+        del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss, grad_penalty_real
 
         # G Update
         fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
@@ -276,7 +282,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
         if iteration % n_show_loss == 0:
             g_losses.append(fake_loss.item())
-            d_losses.append(d_loss.item())
+            d_losses.append(d_loss)
             # print(fd_calculator.calculate_fd(fake_image))
             fd.append(fd_calculator.calculate_fd(fake_image))
 
@@ -341,6 +347,7 @@ g_optim = optim.Adam([{
     'mul': 0.01
 }], lr=args.lr, betas=(0.0, 0.99))
 d_optim = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.0, 0.99))
+print(discriminator.parameters())
 
 if is_continue:
     if os.path.exists(args.load_checkpoint):
