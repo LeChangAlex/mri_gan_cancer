@@ -360,7 +360,7 @@ class PixelNorm(nn.Module):
 
 
 # "learned affine transform" A
-class FC_A(nsn.Module):
+class FC_A(nn.Module):
     '''
     Learned affine transform A, this module is used to transform
     midiate vector w into a style vector
@@ -859,7 +859,19 @@ class Discriminator(nn.Module):
         if step == 0:
             result = self.from_rgbs[self.n_layer - 1](image)
             result = self.lrelu(result)
+            # In dim: [batch, channel(512), 4, 4]
+            res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+            # Out dim: [channel(512), 4, 4]
+            res_std = torch.sqrt(res_var)
+            # Out dim: [channel(512), 4, 4]
+            mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+            # Out dim: [1] -> [batch, 1, 4, 4]
+            result = torch.cat([result, mean_std], 1)
+            # Out dim: [batch, 512 + 1, 4, 4]
+
             result = self.convs[self.n_layer - 1](result)
+
+
         else:
             # from RGB of current step
             result = self.from_rgbs[self.n_layer - 1 - step](image)
