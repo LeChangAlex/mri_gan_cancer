@@ -271,13 +271,15 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         del real_image, real_predict, real_loss, fake_image, fake_predict, fake_loss, grad_penalty_real
 
         # G Update
-        fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
-        fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
-        fake_loss = nn.functional.softplus(-fake_predict).mean()
 
-        g_optim.zero_grad()
-        fake_loss.backward()
-        g_optim.step()
+        for i in range(2):
+            fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
+            fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
+            fake_loss = nn.functional.softplus(-fake_predict).mean()
+
+            g_optim.zero_grad()
+            fake_loss.backward()
+            g_optim.step()
 
 
         if iteration % n_show_loss == 0:
@@ -346,7 +348,9 @@ g_optim = optim.Adam([{
     'lr': args.lr,
     'mul': 0.01
 }], lr=args.lr, betas=(0.0, 0.99))
-d_optim = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.0, 0.99))
+# d_optim = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.0, 0.99))
+d_optim = optim.Adam(discriminator.parameters(), lr=0.0005, betas=(0.0, 0.99))
+
 print(discriminator.parameters())
 
 if is_continue:
