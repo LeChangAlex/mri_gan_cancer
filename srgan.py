@@ -326,7 +326,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
 # Create models
 generator = StyleBased_Generator(n_fc, dim_latent, dim_input).to(device)
-discriminator = Discriminator(sr=args.spectral_reg).to(device)
+discriminator = Discriminator(sr=args.spectral_reg, instance_noise=args.instance_noise).to(device)
 
 # resize images to fit this size
 autoencoder = AutoEncoder(step=4).to(device)
