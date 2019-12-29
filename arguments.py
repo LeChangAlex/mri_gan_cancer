@@ -36,6 +36,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--n_gpu', type=int, default=1, metavar='N',
                         help='')
+    parser.add_argument('--g_steps', type=int, default=1, metavar='N',
+                        help='')
     parser.add_argument('--run_name', type=str, default="SR GAN", metavar='N',
                         help='')
     parser.add_argument('--batch_size', type=str, default=batch_size, metavar='N',

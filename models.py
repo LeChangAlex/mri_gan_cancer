@@ -853,8 +853,11 @@ class Discriminator(nn.Module):
 
     def forward(self, image,
                 step=0,  # Step means how many layers (count from 4 x 4) are used to train
-                alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
+                alpha=-1,
+                instance_noise=False):  # Alpha is the parameter of smooth conversion of resolution):
 
+        if instance_noise:
+            image = image + torch.randn_like(image) * 0.2
 
         if step == 0:
             result = self.from_rgbs[self.n_layer - 1](image)

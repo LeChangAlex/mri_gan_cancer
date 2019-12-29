@@ -272,7 +272,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
         # G Update
 
-        for i in range(2):
+        for i in range(args.g_steps):
             fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
             fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
             fake_loss = nn.functional.softplus(-fake_predict).mean()
@@ -349,7 +349,7 @@ g_optim = optim.Adam([{
     'mul': 0.01
 }], lr=args.lr, betas=(0.0, 0.99))
 # d_optim = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.0, 0.99))
-d_optim = optim.Adam(discriminator.parameters(), lr=0.0005, betas=(0.0, 0.99))
+d_optim = optim.Adam(discriminator.parameters(), lr=0.001, betas=(0.0, 0.99))
 
 print(discriminator.parameters())
 
