@@ -775,8 +775,10 @@ class Discriminator(nn.Module):
     Main Module
     '''
 
-    def __init__(self, sr=False):
+    def __init__(self, sr=False, instance_noise=False):
         super().__init__()
+
+        self.instance_noise = instance_noise
         # Waiting to adjust the size
         # self.from_rgbs = nn.ModuleList([
         #     SConv2d(1, 16, 1, sr=sr),
@@ -853,10 +855,9 @@ class Discriminator(nn.Module):
 
     def forward(self, image,
                 step=0,  # Step means how many layers (count from 4 x 4) are used to train
-                alpha=-1,
-                instance_noise=False):  # Alpha is the parameter of smooth conversion of resolution):
+                alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
 
-        if instance_noise:
+        if self.instance_noise:
             image = image + torch.randn_like(image) * 0.2
 
         if step == 0:
