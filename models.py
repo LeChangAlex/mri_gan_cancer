@@ -858,7 +858,7 @@ class Discriminator(nn.Module):
                 alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
 
         if self.instance_noise:
-            image = image + torch.randn_like(image) * 0.2
+            image = image + torch.randn_like(image) * self.instance_noise
 
         if step == 0:
             result = self.from_rgbs[self.n_layer - 1](image)
