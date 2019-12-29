@@ -775,7 +775,7 @@ class Discriminator(nn.Module):
     Main Module
     '''
 
-    def __init__(self, sr=False, instance_noise=False):
+    def __init__(self, sr=False, instance_noise=0):
         super().__init__()
 
         self.instance_noise = instance_noise
