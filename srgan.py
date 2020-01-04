@@ -69,6 +69,7 @@ style_mixing = []  # Waiting to implement
 
 learning_rate = 0.001
 
+std = 0.2
 
 # /hpf/largeprojects/agoldenb/lechang/
 
