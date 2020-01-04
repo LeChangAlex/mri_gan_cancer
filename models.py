@@ -775,7 +775,7 @@ class Discriminator(nn.Module):
     Main Module
     '''
 
-    def __init__(self, sr=False, instance_noise=0):
+    def __init__(self, sr=False, instance_noise=0 ):
         super().__init__()
 
         self.instance_noise = instance_noise
@@ -855,10 +855,11 @@ class Discriminator(nn.Module):
 
     def forward(self, image,
                 step=0,  # Step means how many layers (count from 4 x 4) are used to train
-                alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
+                alpha=-1,
+                std=0.2):  # Alpha is the parameter of smooth conversion of resolution):
 
         if self.instance_noise:
-            image = image + torch.randn_like(image) * self.instance_noise
+            image = image + torch.randn_like(image) * std
 
         if step == 0:
             result = self.from_rgbs[self.n_layer - 1](image)

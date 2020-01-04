@@ -139,11 +139,11 @@ def sample_data(data_loader, origin_loader):
     return real_image
 
 
-def discriminate(discriminator, real_image, step, alpha, n_gpu):
+def discriminate(discriminator, real_image, step, alpha, std, n_gpu):
     if args.n_gpu > 1:
-        predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha), range(n_gpu))
+        predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha, std), range(n_gpu))
     else:
-        predict = discriminator(real_image, step, alpha)
+        predict = discriminator(real_image, step, alpha, std)
 
     return predict
 
@@ -205,6 +205,12 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
     # Train
     while used_sample < n_sample_total:
 
+        # done 800 x 256 step
+        if used_sample > 3_600_000:
+            std = args.instance_noise - (used_sample - 3_600_000) * args.instance_noise / 600_000
+            std = max(std, 0)
+
+
         iteration += 1
         alpha = min(1, alpha + batch_size[step] / (args.n_sample))
 
@@ -246,13 +252,13 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
         if args.spectral_reg:
             discriminator.update_sr(step, alpha)
 
-        real_predict = discriminate(discriminator, real_image, step, alpha, args.n_gpu)
+        real_predict = discriminate(discriminator, real_image, step, alpha, std, args.n_gpu)
         real_loss = nn.functional.softplus(-real_predict).mean()
 
 
 
         fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
-        fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
+        fake_predict = discriminate(discriminator, fake_image, step, alpha, std, args.n_gpu)
 
         fake_loss = nn.functional.softplus(fake_predict).mean()
 
@@ -274,7 +280,7 @@ def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iterati
 
         for i in range(args.g_steps):
             fake_image = generate(generator, step, alpha, random_mix_steps(), resolution, args.n_gpu)
-            fake_predict = discriminate(discriminator, fake_image, step, alpha, args.n_gpu)
+            fake_predict = discriminate(discriminator, fake_image, step, alpha, std, args.n_gpu)
             fake_loss = nn.functional.softplus(-fake_predict).mean()
 
             g_optim.zero_grad()
