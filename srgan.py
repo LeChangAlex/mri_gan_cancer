@@ -365,7 +365,7 @@ if is_continue:
         print('Loading pre-trained model...')
         checkpoint = torch.load(args.load_checkpoint)
         generator.load_state_dict(checkpoint['generator'])
-        discriminator.load_state_dict(checkpoint['discriminator1'])
+        discriminator.load_state_dict(checkpoint['discriminator'])
         g_optim.load_state_dict(checkpoint['g_optim'])
         d_optim.load_state_dict(checkpoint['d_optim'])
         step, iteration, startpoint, used_sample, alpha = checkpoint['parameters']
