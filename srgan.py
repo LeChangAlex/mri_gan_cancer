@@ -69,7 +69,6 @@ style_mixing = []  # Waiting to implement
 
 learning_rate = 0.001
 
-std = 0.2
 
 # /hpf/largeprojects/agoldenb/lechang/
 
@@ -184,7 +183,7 @@ def encode(encoder, image, step, alpha, n_gpu):
 def train(generator, discriminator, autoencoder, g_optim, d_optim, step, iteration=0, startpoint=0, used_sample=0,
           d_losses=[], g_losses=[],alpha=0):
 
-
+    std = 0.2
 
     resolution = (25 * 2 ** step, 8 * 2 ** step)
 
