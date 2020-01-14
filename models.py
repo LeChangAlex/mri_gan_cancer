@@ -101,6 +101,178 @@ class AESDeconv2d(nn.Module):
         return self.conv(result)
 
 
+class VariationalAutoEncoder(nn.Module):
+    def __init__(self, step):
+        super().__init__()
+
+        self.relu = nn.ReLU()
+        self.encoder_layers = nn.ModuleList([])
+        self.decoder_layers = nn.ModuleList([])
+
+        # Encoder
+        # (800, 256, 1) -> (400, 128, 16) -> (200, 64, 32) -> (100, 32, 64) -> (50, 16, 128) -> (25, 8, 256) ->
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=1,
+                                      out_channels=8,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                        nn.ReLU(),
+                        nn.BatchNorm2d(num_features=8, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+        )
+
+
+        for i in range(step):
+            self.encoder_layers.append(nn.Sequential(
+                AESConv2d(in_channels=8 * (2 ** i),
+                          out_channels=8*(2**(i+1)),
+                          kernel_size=3,
+                          padding=1,
+                          stride=(2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(num_features=8*(2**(i+1)), eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            ))
+
+
+
+        # self.encoder_layers.append(nn.Sequential(
+        #     # (50, 16, 64) -> (25, 8, 128)
+        #     AESConv2d(in_channels=64,
+        #               out_channels=128,
+        #               kernel_size=3,
+        #               padding=(1, 1),
+        #               stride=(2, 2)),
+        #     nn.ReLU(),
+        #     nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+        #                    track_running_stats=True)
+        # ))
+        self.encoder_layers.append(nn.Sequential(
+            # (25, 8, 128) -> (12, 4, 256)
+            AESConv2d(in_channels=128,
+                      out_channels=256,
+                      kernel_size=3,
+                      padding=(0, 1),
+                      stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True)
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            # (12, 4, 256) -> (4, 2, 512)
+            AESConv2d(in_channels=256,
+                      out_channels=512,
+                      kernel_size=(5, 3),
+                      padding=(2, 1),
+                      stride=(3, 2)),
+
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            # (4, 2, 512) -> (2, 1, 1024)
+            AESConv2d(in_channels=512,
+                      out_channels=1024,
+                      kernel_size=3,
+                      padding=(1, 1),
+                      stride=(2, 2)),
+
+        ))
+        self.encoder_layers.append(nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=1024, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True)
+        ))
+
+
+        # Decoder
+        self.decoder_layers.append(nn.Sequential(
+            #  (2, 1, 1024) -> (4, 2, 512)
+            nn.ConvTranspose2d(in_channels=1024,
+                                out_channels=512,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 1)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+
+            # (4, 2, 512) -> (12, 4, 256)
+            nn.ConvTranspose2d(in_channels=512,
+                               out_channels=256,
+                               kernel_size=(5, 4),
+                               padding=1,
+                               stride=(3, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+
+            # (12, 4, 256) -> (25, 8, 128)
+            nn.ConvTranspose2d(in_channels=256,
+                               out_channels=128,
+                               kernel_size=(5, 4),
+                               padding=1,
+                               stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+
+
+        for i in range(step):
+            self.decoder_layers.append(nn.Sequential(
+                AESDeconv2d(in_channels=8 * (2 ** (step - i)),
+                            out_channels=8 * (2 ** (step - i - 1)),
+                            kernel_size=3,
+                            padding=1,
+                            stride=(1, 1)),
+                nn.ReLU(),
+                nn.BatchNorm2d(num_features=8 * (2 ** (step - i - 1)), eps=1e-05, momentum=0.1, affine=True,
+                               track_running_stats=True))
+            )
+        self.decoder_layers.append(nn.Sequential(
+                AESDeconv2d(in_channels=8,
+                out_channels=1,
+                kernel_size=3,
+                padding=1,
+                stride=(1, 1)),
+        ))
+
+
+    def forward(self, *input):
+        result = input[0]
+        result = self.encode(result)
+
+        result = self.relu(result)
+
+        result = self.decode(result)
+
+        return result
+
+    def encode(self, result):
+
+        for i in range(len(self.encoder_layers)):
+
+            result = self.encoder_layers[i](result)
+            # print(i, result.shape)
+
+
+
+        return result
+
+    def decode(self, result):
+        for i in range(len(self.decoder_layers) - 1):
+            result = self.decoder_layers[i](result)
+            # print(i, result.shape)
+
+        result = self.decoder_layers[-1](result)
+
+        return result
+
+
 class AutoEncoder(nn.Module):
     def __init__(self, step):
         super().__init__()
@@ -519,6 +691,37 @@ class StyleConv_Block(nn.Module):
 #         result = self.conv(image)
 #         return result
 
+class EarlyConvBlock(nn.Module):
+    '''
+    Used to construct progressive discriminator
+    '''
+
+    def __init__(self, in_channel, out_channel, size_kernel1, padding1,
+                 size_kernel2=None, padding2=None, stride=(1, 1), sr=False, sr_last=False):
+        super().__init__()
+
+        if size_kernel2 == None:
+            size_kernel2 = size_kernel1
+        if padding2 == None:
+            padding2 = padding1
+
+
+        self.fc = nn.Linear(in_channel, out_channel)
+        self.conv = SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr_last)
+        self.lrelu = nn.LeakyReLU(0.2)
+
+
+    def forward(self, image):
+        # Conv
+
+        bs = image.shape[0]
+        result = self.lrelu(self.fc(image))
+        result = result.reshape(bs, 25, 8, -1)
+
+        result = self.lrelu(self.conv(result))
+        return result
+
+
 # General Convolutional Block
 # 5/13: Downsample is now removed from block module
 class ConvBlock(nn.Module):
@@ -633,6 +836,139 @@ class Encoder(nn.Module):
 
         return result
 
+class DC_Generator(nn.Module):
+    '''
+    Main Module
+    '''
+
+    def __init__(self, n_fc, dim_latent, dim_input):
+        super().__init__()
+
+        self.convs = nn.ModuleList([
+            EarlyConvBlock(512, 512, 3, 1),
+
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 512, 3, 1),
+            ConvBlock(512, 256, 3, 1),
+            ConvBlock(256, 128, 3, 1),
+            ConvBlock(128, 64, 3, 1)
+
+        ])
+        self.to_rgbs = SConv2d(64, 1, 1)
+
+
+    def forward(self, latent_z,
+                noise=None):  # parameter of truncation
+        if type(latent_z) != type([]):
+            print('You should use list to package your latent_z')
+            latent_z = [latent_z]
+
+
+
+
+        result = self.convs[0](noise)
+
+
+        for i in range(1, 7):
+
+            result = nn.functional.interpolate(result, scale_factor=2, mode='bilinear',
+                                                    align_corners=False)
+            result = self.convs[i](result)
+
+
+        result = self.to_rgbs(result)
+
+        return result
+
+class DC_Discriminator(nn.Module):
+    '''
+    Main Module
+    '''
+
+    def __init__(self, sr=False, instance_noise=0 ):
+        super().__init__()
+
+        self.instance_noise = instance_noise
+
+        self.lrelu = nn.LeakyReLU(0.2)
+        self.from_rgbs = SConv2d(1, 64, 1, sr=sr)
+
+        self.convs = nn.ModuleList([
+            ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(512, 512, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(513, 512, 3, 1, (25, 8), 0, sr=sr)
+        ])
+
+        self.fc1 = SLinear(512, 512, sr=sr)
+        self.fc2 = SLinear(512, 1, sr=sr)
+
+        self.n_layer = 6
+
+    # def update_sr(self, step, alpha):
+    #
+    #     # update from_rgb conv layer
+    #     if step == 0:
+    #         self.from_rgbs[-1].conv.update_w()
+    #     elif alpha == 1:
+    #         self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+    #     else:
+    #         self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+    #         self.from_rgbs[self.n_layer - step].conv.update_w()
+    #
+    #     # update other conv layers
+    #
+    #     for i in range(self.n_layer - step, self.n_layer):
+    #         if isinstance(self.convs[i].conv1.conv, SpectralReg):
+    #             self.convs[i].conv1.conv.update_w()
+    #         if isinstance(self.convs[i].conv2.conv, SpectralReg):
+    #             self.convs[i].conv2.conv.update_w()
+    #
+    #     self.fc1.linear.update_w()
+    #     self.fc2.linear.update_w()
+
+
+    def forward(self, image,
+                std=0.2):  # Alpha is the parameter of smooth conversion of resolution):
+
+        if self.instance_noise:
+            image = image + torch.randn_like(image) * std
+
+
+        # from RGB of current step
+        result = self.from_rgbs(image)
+        result = self.lrelu(result)
+
+        for i in range(self.n_layer):
+            # Conv
+
+            if i == self.n_layer - 1:
+                # In dim: [batch, channel(512), 4, 4]
+                res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+                # Out dim: [channel(512), 4, 4]
+                res_std = torch.sqrt(res_var)
+                # Out dim: [channel(512), 4, 4]
+                mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+                # Out dim: [1] -> [batch, 1, 4, 4]
+                result = torch.cat([result, mean_std], 1)
+                # Out dim: [batch, 512 + 1, 4, 4]
+
+            result = self.convs[i](result)
+
+
+
+
+        result = result.squeeze(2).squeeze(2)
+
+        result = self.fc1(result)
+        result = self.lrelu(result)
+        result = self.fc2(result)
+
+        return result
+
 # 5/13: Support progressive training
 # 5/13: Proxy noise generating
 # 5/13: Proxy upsampling
@@ -676,8 +1012,6 @@ class StyleBased_Generator(nn.Module):
             StyleConv_Block(512, 256, dim_latent),
             StyleConv_Block(256, 128, dim_latent),
             StyleConv_Block(128, 64, dim_latent)
-            # StyleConv_Block(64, 32, dim_latent),
-            # StyleConv_Block(32, 16, dim_latent)
         ])
         self.to_rgbs = nn.ModuleList([
             # SConv2d(512, 1, 1),
