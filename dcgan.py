@@ -141,7 +141,7 @@ def sample_data(data_loader, origin_loader):
 
 def discriminate(discriminator, real_image, std, n_gpu):
     if args.n_gpu > 1:
-        predict = nn.parallel.data_parallel(discriminator, (real_image, step, alpha, std), range(n_gpu))
+        predict = nn.parallel.data_parallel(discriminator, (real_image, std), range(n_gpu))
     else:
         predict = discriminator(real_image, std)
 
@@ -150,8 +150,7 @@ def discriminate(discriminator, real_image, std, n_gpu):
 
 def generate(generator, n_gpu, noise=None):
     if noise is None:
-        latent_w = [torch.randn((batch_size[step], dim_latent), device=device),
-                    torch.randn((batch_size[step], dim_latent), device=device)]
+        noise = torch.randn((batch_size[0], dim_latent), device=device)
 
     if args.n_gpu > 1:
         fake_image = nn.parallel.data_parallel(generator, (noise,),
