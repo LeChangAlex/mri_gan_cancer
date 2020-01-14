@@ -30,7 +30,7 @@ def get_args():
     save_im_path = "./g_z/" + run_name
     save_checkpoints_path = "./checkpoints/" + run_name
 
-    load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/checkpoints/Instance noise 0.2/trained-51000.pth"
+    # load_checkpoint = "/hpf/largeprojects/agoldenb/lechang/checkpoints/Instance noise 0.2/trained-51000.pth"
 
 
     parser = argparse.ArgumentParser()
@@ -50,7 +50,7 @@ def get_args():
                          help='')
     parser.add_argument('--save_checkpoints', type=str, default="./checkpoints/", metavar='N',
                          help='')
-    parser.add_argument('--load_checkpoint', type=str, default=load_checkpoint, metavar='N',
+    parser.add_argument('--load_checkpoint', type=str, default="no", metavar='N',
                          help='')
     parser.add_argument('--lambda1', type=str, default=0.01, metavar='N',
                          help='')
