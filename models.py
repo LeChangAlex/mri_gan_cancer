@@ -706,17 +706,16 @@ class EarlyConvBlock(nn.Module):
             padding2 = padding1
 
 
-        self.fc = nn.Linear(in_channel, out_channel)
+        self.fc = nn.Linear(in_channel, 25 * 8 * 512)
         self.conv = SConv2d(out_channel, out_channel, size_kernel2, padding=padding2, sr=sr_last)
         self.lrelu = nn.LeakyReLU(0.2)
 
 
     def forward(self, image):
         # Conv
-
         bs = image.shape[0]
         result = self.lrelu(self.fc(image))
-        result = result.reshape(bs, 25, 8, -1)
+        result = result.reshape(bs, 512, 25, 8)
 
         result = self.lrelu(self.conv(result))
         return result
@@ -858,19 +857,14 @@ class DC_Generator(nn.Module):
         self.to_rgbs = SConv2d(64, 1, 1)
 
 
-    def forward(self, latent_z,
-                noise=None):  # parameter of truncation
-        if type(latent_z) != type([]):
-            print('You should use list to package your latent_z')
-            latent_z = [latent_z]
+    def forward(self, latent_z):  # parameter of truncation
 
 
+        result = self.convs[0](latent_z)
+        result = self.convs[1](result)
 
 
-        result = self.convs[0](noise)
-
-
-        for i in range(1, 7):
+        for i in range(2, 7):
 
             result = nn.functional.interpolate(result, scale_factor=2, mode='bilinear',
                                                     align_corners=False)
@@ -886,7 +880,7 @@ class DC_Discriminator(nn.Module):
     Main Module
     '''
 
-    def __init__(self, sr=False, instance_noise=0 ):
+    def __init__(self, sr=False, instance_noise=0.2):
         super().__init__()
 
         self.instance_noise = instance_noise
@@ -943,6 +937,7 @@ class DC_Discriminator(nn.Module):
         result = self.lrelu(result)
 
         for i in range(self.n_layer):
+            print(result.shape)
             # Conv
 
             if i == self.n_layer - 1:
@@ -953,6 +948,7 @@ class DC_Discriminator(nn.Module):
                 # Out dim: [channel(512), 4, 4]
                 mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
                 # Out dim: [1] -> [batch, 1, 4, 4]
+                print(result.shape, mean_std.shape)
                 result = torch.cat([result, mean_std], 1)
                 # Out dim: [batch, 512 + 1, 4, 4]
 
