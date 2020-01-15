@@ -937,7 +937,6 @@ class DC_Discriminator(nn.Module):
         result = self.lrelu(result)
 
         for i in range(self.n_layer):
-            print(result.shape)
             # Conv
 
             if i == self.n_layer - 1:
@@ -948,7 +947,6 @@ class DC_Discriminator(nn.Module):
                 # Out dim: [channel(512), 4, 4]
                 mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
                 # Out dim: [1] -> [batch, 1, 4, 4]
-                print(result.shape, mean_std.shape)
                 result = torch.cat([result, mean_std], 1)
                 # Out dim: [batch, 512 + 1, 4, 4]
 
