@@ -150,7 +150,6 @@ def discriminate(discriminator, real_image, std, n_gpu):
 
 def generate(generator, n_gpu, noise=None):
     if noise is None:
-        print(batch_size[0])
         noise = torch.randn((batch_size[0], dim_latent), device=device)
 
     if args.n_gpu > 1:
