@@ -354,9 +354,9 @@ def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_opt
 
 # Create models
 generator = StyleBased_Generator(n_fc, dim_latent, dim_input).to(device)
-discriminator1 = Discriminator().to(device)
-discriminator2 = Discriminator().to(device)
-encoder = Encoder().to(device)
+discriminator1 = DiscriminatorLite().to(device)
+discriminator2 = DiscriminatorLite().to(device)
+encoder = EncoderLite().to(device)
 
 
 autoencoder = None

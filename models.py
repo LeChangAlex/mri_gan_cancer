@@ -830,6 +830,65 @@ class Encoder(nn.Module):
 
         return result
 
+
+class EncoderLite(nn.Module):
+    '''
+    Main Module
+    '''
+    def __init__(self):
+        super().__init__()
+        # Waiting to adjust the size
+        self.from_rgbs = nn.ModuleList([
+            SConv2d(1, 64, 1),
+            SConv2d(1, 128, 1),
+            SConv2d(1, 256, 1),
+            SConv2d(1, 256, 1),
+            SConv2d(1, 256, 1),
+            SConv2d(1, 256, 1)
+        ])
+        self.convs = nn.ModuleList([
+            ConvBlock(64, 128, 3, 1, stride=(2, 2)),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2)),
+            ConvBlock(256, 512, 3, 1, (25, 8), 0)
+        ])
+        self.fc1 = SLinear(512, 512)
+
+        self.n_layer = 6  # 6 layers network
+
+    def forward(self, image,
+                step=0,  # Step means how many layers (count from 4 x 4) are used to train
+                alpha=-1):  # Alpha is the parameter of smooth conversion of resolution):
+
+
+        if step == 0:
+            result = self.from_rgbs[self.n_layer - 1](image)
+            result = self.convs[self.n_layer - 1](result)
+
+        else:
+            # from RGB of current step
+            result = self.from_rgbs[self.n_layer - 1 - step](image)
+            result = self.convs[self.n_layer - 1 - step](result)
+
+
+            half_res_im = nn.functional.interpolate(image, scale_factor=0.5,
+                                                    mode='bilinear', align_corners=False)
+            result_prev = self.from_rgbs[self.n_layer - step](half_res_im)
+
+            result = alpha * result + (1 - alpha) * result_prev
+
+            for i in range(self.n_layer - step, self.n_layer):
+                # Conv
+                result = self.convs[i](result)
+
+
+        result = result.squeeze(2).squeeze(2)
+        result = self.fc1(result)
+
+        return result
+
 class DC_Generator(nn.Module):
     '''
     Main Module
@@ -1148,6 +1207,141 @@ class Discriminator(nn.Module):
 
         self.fc1 = SLinear(512, 512, sr=sr)
         self.fc2 = SLinear(512, 1, sr=sr)
+
+        self.n_layer = 6  # 9 layers network
+
+        # self.n_layer = 9  # 9 layers network
+
+    def update_sr(self, step, alpha):
+
+        # update from_rgb conv layer
+        if step == 0:
+            self.from_rgbs[-1].conv.update_w()
+        elif alpha == 1:
+            self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+        else:
+            self.from_rgbs[self.n_layer - 1 - step].conv.update_w()
+            self.from_rgbs[self.n_layer - step].conv.update_w()
+
+        # update other conv layers
+
+        for i in range(self.n_layer - step, self.n_layer):
+            if isinstance(self.convs[i].conv1.conv, SpectralReg):
+                self.convs[i].conv1.conv.update_w()
+            if isinstance(self.convs[i].conv2.conv, SpectralReg):
+                self.convs[i].conv2.conv.update_w()
+
+        self.fc1.linear.update_w()
+        self.fc2.linear.update_w()
+
+
+    def forward(self, image,
+                step=0,  # Step means how many layers (count from 4 x 4) are used to train
+                alpha=-1,
+                std=0.2):  # Alpha is the parameter of smooth conversion of resolution):
+
+        if self.instance_noise:
+            image = image + torch.randn_like(image) * std
+
+        if step == 0:
+            result = self.from_rgbs[self.n_layer - 1](image)
+            result = self.lrelu(result)
+            # In dim: [batch, channel(512), 4, 4]
+            res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+            # Out dim: [channel(512), 4, 4]
+            res_std = torch.sqrt(res_var)
+            # Out dim: [channel(512), 4, 4]
+            mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+            # Out dim: [1] -> [batch, 1, 4, 4]
+            result = torch.cat([result, mean_std], 1)
+            # Out dim: [batch, 512 + 1, 4, 4]
+
+            result = self.convs[self.n_layer - 1](result)
+
+
+        else:
+            # from RGB of current step
+            result = self.from_rgbs[self.n_layer - 1 - step](image)
+            result = self.lrelu(result)
+            result = self.convs[self.n_layer - 1 - step](result)
+
+
+            half_res_im = nn.functional.interpolate(image, scale_factor=0.5,
+                                                    mode='bilinear', align_corners=False)
+            result_prev = self.from_rgbs[self.n_layer - step](half_res_im)
+            result_prev = self.lrelu(result_prev)
+
+            result = alpha * result + (1 - alpha) * result_prev
+
+            for i in range(self.n_layer - step, self.n_layer):
+                # Conv
+
+                if i == self.n_layer - 1:
+                    # In dim: [batch, channel(512), 4, 4]
+                    res_var = result.var(0, unbiased=False) + 1e-8  # Avoid zero
+                    # Out dim: [channel(512), 4, 4]
+                    res_std = torch.sqrt(res_var)
+                    # Out dim: [channel(512), 4, 4]
+                    mean_std = res_std.mean().expand(result.size(0), 1, 25, 8)
+                    # Out dim: [1] -> [batch, 1, 4, 4]
+                    result = torch.cat([result, mean_std], 1)
+                    # Out dim: [batch, 512 + 1, 4, 4]
+
+                result = self.convs[i](result)
+
+
+
+
+        result = result.squeeze(2).squeeze(2)
+
+        result = self.fc1(result)
+        result = self.lrelu(result)
+        result = self.fc2(result)
+
+        return result
+
+
+# Discriminator
+# 5/13: Support progressive training
+# 5/13: Add downsample module
+# Component of Progressive GAN
+# Reference: Karras, T., Aila, T., Laine, S., & Lehtinen, J. (2017).
+# Progressive Growing of GANs for Improved Quality, Stability, and Variation, 1–26.
+# Retrieved from http://arxiv.org/abs/1710.10196
+class DiscriminatorLite(nn.Module):
+    '''
+    Main Module
+    '''
+
+    def __init__(self, sr=False, instance_noise=0 ):
+        super().__init__()
+
+        self.instance_noise = instance_noise
+        # Waiting to adjust the size
+
+        self.lrelu = nn.LeakyReLU(0.2)
+        self.from_rgbs = nn.ModuleList([
+            SConv2d(1, 64, 1, sr=sr),
+            SConv2d(1, 128, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr),
+            SConv2d(1, 256, 1, sr=sr)
+        ])
+        self.convs = nn.ModuleList([
+            # ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
+            # ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
+            # ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(257, 256, 3, 1, (25, 8), 0, sr=sr)
+        ])
+
+        self.fc1 = SLinear(256, 256, sr=sr)
+        self.fc2 = SLinear(256, 1, sr=sr)
 
         self.n_layer = 6  # 9 layers network
 
