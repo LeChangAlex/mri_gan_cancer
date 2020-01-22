@@ -341,8 +341,8 @@ def train(generator, discriminator1, discriminator2, encoder, autoencoder, g_opt
                 'g_losses': g_losses,
                 'e_losses': e_losses
 
-            }, f'{args.save_checkpoints_path}/trained-{iteration}.pth')
-            wandb.save(f'{args.save_checkpoints_path}/trained-{iteration}.pth')
+            }, f'{args.save_checkpoints}/trained-{iteration}.pth')
+            wandb.save(f'{args.save_checkpoints}/trained-{iteration}.pth')
             print(f' Model successfully saved.')
 
 
