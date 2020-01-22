@@ -839,18 +839,18 @@ class EncoderLite(nn.Module):
         super().__init__()
         # Waiting to adjust the size
         self.from_rgbs = nn.ModuleList([
+            SConv2d(1, 16, 1),
+            SConv2d(1, 32, 1),
             SConv2d(1, 64, 1),
             SConv2d(1, 128, 1),
-            SConv2d(1, 256, 1),
-            SConv2d(1, 256, 1),
             SConv2d(1, 256, 1),
             SConv2d(1, 256, 1)
         ])
         self.convs = nn.ModuleList([
+            ConvBlock(16, 32, 3, 1, stride=(2, 2)),
+            ConvBlock(32, 64, 3, 1, stride=(2, 2)),
             ConvBlock(64, 128, 3, 1, stride=(2, 2)),
             ConvBlock(128, 256, 3, 1, stride=(2, 2)),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2)),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2)),
             ConvBlock(256, 256, 3, 1, stride=(2, 2)),
             ConvBlock(256, 512, 3, 1, (25, 8), 0)
         ])
@@ -1321,9 +1321,9 @@ class DiscriminatorLite(nn.Module):
 
         self.lrelu = nn.LeakyReLU(0.2)
         self.from_rgbs = nn.ModuleList([
+            SConv2d(1, 32, 1, sr=sr),
             SConv2d(1, 64, 1, sr=sr),
             SConv2d(1, 128, 1, sr=sr),
-            SConv2d(1, 256, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr),
             SConv2d(1, 256, 1, sr=sr)
@@ -1332,9 +1332,9 @@ class DiscriminatorLite(nn.Module):
             # ConvBlock(16, 32, 3, 1, stride=(2, 2), sr=sr),
             # ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             # ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
+            ConvBlock(32, 64, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(64, 128, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(128, 256, 3, 1, stride=(2, 2), sr=sr),
-            ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(256, 256, 3, 1, stride=(2, 2), sr=sr),
             ConvBlock(257, 256, 3, 1, (25, 8), 0, sr=sr)
