@@ -3,6 +3,7 @@ import pandas as pd
 import lmdb
 from PIL import Image
 from torch.utils.data import Dataset
+import os
 
 
 class MultiResolutionDataset(Dataset):
