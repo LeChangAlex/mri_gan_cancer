@@ -24,7 +24,7 @@ class MultiResolutionDataset(Dataset):
         volume = Image.fromarray(np_volume)
         # annotations = self.annotations.iloc[index,0].as_matrix()
         # annotations = annotations.astype('float').reshape(-1,2)
-        sample = volume[np.newaxis, ...]
+        sample = volume#[np.newaxis, ...]
 
         if self.transform:
             sample = self.transform(sample)
