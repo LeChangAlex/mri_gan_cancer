@@ -301,7 +301,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('path', type=str)
+    parser.add_argument('--path', type=str)
     parser.add_argument('--iter', type=int, default=800000)
     parser.add_argument('--batch', type=int, default=16)
     parser.add_argument('--n_sample', type=int, default=64)
