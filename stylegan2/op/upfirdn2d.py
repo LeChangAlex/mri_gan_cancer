@@ -8,7 +8,7 @@ from torch.utils.cpp_extension import load
 module_path = os.path.dirname(__file__)
 upfirdn2d_op = load(
     'upfirdn2d',
-    build_directory="/h/lechang/.conda/envs/mri_gan/lib/python3.6/site-packages/torch/torch_extensions",
+    # build_directory="/h/lechang/.conda/envs/mri_gan/lib/python3.6/site-packages/torch/torch_extensions",
     sources=[
         os.path.join(module_path, 'upfirdn2d.cpp'),
         os.path.join(module_path, 'upfirdn2d_kernel.cu'),
