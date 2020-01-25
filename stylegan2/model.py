@@ -462,7 +462,7 @@ class Generator(nn.Module):
 
         for i in range(self.log_size - 2):
             for _ in range(2):
-                noises.append(torch.randn(1, 1, 25 * (2 ** i), 4 * (2 ** i), device=device))
+                noises.append(torch.randn(1, 1, 25 * (2 ** i), 8 * (2 ** i), device=device))
 
         return noises
 
