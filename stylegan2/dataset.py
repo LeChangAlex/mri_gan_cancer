@@ -9,7 +9,7 @@ class MultiResolutionDataset(Dataset):
     def __init__(self, path, transform, resolution=256):
 
     # def __init__(self,csv_file,root_dir,transform=None):
-        self.annotations = pd.read_csv("annotations_slices_medium.csv", engine='python')
+        self.annotations = pd.read_csv("../annotations_slices_medium.csv", engine='python')
         self.root_dir = path
         self.transform = transform
     
