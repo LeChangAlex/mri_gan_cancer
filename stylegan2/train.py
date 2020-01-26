@@ -196,6 +196,8 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
         requires_grad(generator, True)
         requires_grad(discriminator, False)
 
+
+
         noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         fake_img, _ = generator(noise)
         fake_pred = discriminator(fake_img)
@@ -327,6 +329,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     n_gpu = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+
+    print("Using {} GPUs".format(n_gpu))
     args.distributed = n_gpu > 1
 
     if args.distributed:
