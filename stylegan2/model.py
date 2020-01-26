@@ -346,7 +346,7 @@ class ToRGB(nn.Module):
         if upsample:
             self.upsample = Upsample(blur_kernel)
 
-        self.conv = ModulatedConv2d(in_channel, 3, 1, style_dim, demodulate=False)
+        self.conv = ModulatedConv2d(in_channel, 1, 1, style_dim, demodulate=False)
         self.bias = nn.Parameter(torch.zeros(1, 3, 1, 1))
 
     def forward(self, input, style, skip=None):
@@ -415,7 +415,7 @@ class Generator(nn.Module):
         self.to_rgb1 = ToRGB(self.channels[8], style_dim, upsample=False)
 
         self.log_size = int(math.log(size, 2))
-        self.num_layers = (self.log_size - 2) * 2 + 1
+        self.num_layers = (self.log_size - 3) * 2 + 1
 
         self.convs = nn.ModuleList()
         self.upsamples = nn.ModuleList()
@@ -627,21 +627,19 @@ class Discriminator(nn.Module):
             4: 512,
             8: 512,
             16: 512,
-            32: 512,
-            64: 256 * channel_multiplier,
-            128: 128 * channel_multiplier,
-            256: 64 * channel_multiplier,
-            512: 32 * channel_multiplier,
-            1024: 16 * channel_multiplier,
+            32: 256,
+            64: 128 * channel_multiplier,
+            128: 64 * channel_multiplier,
+            256: 16 * channel_multiplier,
         }
 
-        convs = [ConvLayer(3, channels[size], 1)]
+        convs = [ConvLayer(1, channels[size], 1)]
 
         log_size = int(math.log(size, 2))
 
         in_channel = channels[size]
 
-        for i in range(log_size, 2, -1):
+        for i in range(log_size, 1, -1):
             out_channel = channels[2 ** (i - 1)]
 
             convs.append(ResBlock(in_channel, out_channel, blur_kernel))
@@ -653,9 +651,12 @@ class Discriminator(nn.Module):
         self.stddev_group = 4
         self.stddev_feat = 1
 
-        self.final_conv = ConvLayer(in_channel + 1, channels[4], 3)
+        # self.final_conv = ConvLayer(in_channel + 1, channels[4], 3)
+
+        self.final_conv = ConvLayer(channels[4] + 1, channels[4], 3)
+
         self.final_linear = nn.Sequential(
-            EqualLinear(channels[4] * 4 * 4, channels[4], activation='fused_lrelu'),
+            EqualLinear(channels[4] * 12 * 4, channels[4], activation='fused_lrelu'),
             EqualLinear(channels[4], 1),
         )
 
