@@ -338,8 +338,8 @@ if __name__ == '__main__':
 
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(backend='nccl', init_method='env://')
-        synchronize()
+        # torch.distributed.init_process_group(backend='nccl', init_method='env://')
+        # synchronize()
 
     args.latent = 512
     args.n_mlp = 8
@@ -418,6 +418,7 @@ if __name__ == '__main__':
     )
 
     dataset = MultiResolutionDataset(args.path, transform, args.size)
+    print("dataset has {} images".format(len(dataset)))
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
