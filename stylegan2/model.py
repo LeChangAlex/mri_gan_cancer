@@ -347,7 +347,7 @@ class ToRGB(nn.Module):
             self.upsample = Upsample(blur_kernel)
 
         self.conv = ModulatedConv2d(in_channel, 1, 1, style_dim, demodulate=False)
-        self.bias = nn.Parameter(torch.zeros(1, 3, 1, 1))
+        self.bias = nn.Parameter(torch.zeros(1, 1, 1, 1))
 
     def forward(self, input, style, skip=None):
         out = self.conv(input, style)
@@ -454,6 +454,7 @@ class Generator(nn.Module):
             in_channel = out_channel
 
         self.n_latent = self.log_size * 2 - 2
+
 
     def make_noise(self):
         device = self.input.input.device
