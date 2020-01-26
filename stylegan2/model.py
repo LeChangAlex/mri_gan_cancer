@@ -639,7 +639,7 @@ class Discriminator(nn.Module):
 
         in_channel = channels[size]
 
-        for i in range(log_size, 1, -1):
+        for i in range(log_size, 2, -1):
             out_channel = channels[2 ** (i - 1)]
 
             convs.append(ResBlock(in_channel, out_channel, blur_kernel))
