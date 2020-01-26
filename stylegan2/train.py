@@ -268,11 +268,12 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         'Real Score': real_score_val,
                         'Fake Score': fake_score_val,
                         'Path Length': path_length_val,
-                    }
+                    },
+                    step=i
                 )
 
 
-            if i % 360 / args.batch == 0:
+            if i % (360 / args.batch) == 0:
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema([sample_z])
