@@ -328,9 +328,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    n_gpu = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+    print(os.environ["CUDA_VISIBLE_DEVICES"])
+    # n_gpu = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
 
+    n_gpu = len(os.environ["CUDA_VISIBLE_DEVICES"].split(","))
     print("Using {} GPUs".format(n_gpu))
+
     args.distributed = n_gpu > 1
 
     if args.distributed:
