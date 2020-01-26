@@ -284,7 +284,7 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                         normalize=True,
                         range=(-1, 1),
                     )
-                    wandb.log("G(z)":[wandb.Image(sample[i][0], mode="F") for i in range(sample.shape[0])],
+                    wandb.log({"G(z)":[wandb.Image(sample[i][0], mode="F") for i in range(sample.shape[0])]},
                         step=i)
 
 
