@@ -29,7 +29,7 @@ import torch
 
 import numpy as np
 from scipy import linalg
-from scipy.misc.pilutil import imread
+from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
 
 try:
@@ -41,7 +41,7 @@ except ImportError:
 from inception import InceptionV3
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('path', type=str,
+parser.add_argument('--path', type=str,
                     help=('Path to the generated images or '
                           'to .npz statistic files'))
 parser.add_argument('--batch-size', type=int, default=50,
