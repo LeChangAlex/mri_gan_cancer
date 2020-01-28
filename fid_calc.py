@@ -252,7 +252,7 @@ if __name__ == '__main__':
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[args.dims]
 
     model = InceptionV3([block_idx])
-    if cuda:
+    if args.cuda:
         model.cuda()
 
 
