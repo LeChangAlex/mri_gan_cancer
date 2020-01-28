@@ -255,9 +255,10 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
         f = np.load(path)
         m, s = f['mu'][:], f['sigma'][:]
         f.close()
-    else:
+    else:`:
         print(path)
         im = imread(path.astype(np.float32)
+        print(im.shape)
         # images_3ch = []
         # for im in images:
         #     channels = np.stack((im,)*3, axis=-1).reshape(3,im.shape[1], im.shape[0])
@@ -305,7 +306,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     # real
-    m1, s1 = _compute_statistics_of_path("./data", model, args.batch_size,
+    m1, s1 = _compute_statistics_of_path("./data/wbmri_medium", model, args.batch_size,
                                          args.dims, args.gpu)
 
     path = pathlib.Path(args.path)
