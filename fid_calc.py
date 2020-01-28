@@ -209,6 +209,30 @@ def calculate_activation_statistics(files, model, batch_size=50,
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
+def calculate_activation_statistics_im(im, model, batch_size=50,
+                                    dims=2048, cuda=False, verbose=False):
+    """Calculation of the statistics used by the FID.
+    Params:
+    -- files       : List of image files paths
+    -- model       : Instance of inception model
+    -- batch_size  : The images numpy array is split into batches with
+                     batch size batch_size. A reasonable batch size
+                     depends on the hardware.
+    -- dims        : Dimensionality of features returned by Inception
+    -- cuda        : If set to True, use GPU
+    -- verbose     : If set to True and parameter out_step is given, the
+                     number of calculated batches is reported.
+    Returns:
+    -- mu    : The mean over samples of the activations of the pool_3 layer of
+               the inception model.
+    -- sigma : The covariance matrix of the activations of the pool_3 layer of
+               the inception model.
+    """
+    act = get_activations(files, model, batch_size, dims, cuda, verbose)
+    mu = np.mean(act, axis=0)
+    sigma = np.cov(act, rowvar=False)
+    return mu, sigma
+
 
 def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
     if path.endswith('.npz'):
@@ -216,9 +240,31 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
         m, s = f['mu'][:], f['sigma'][:]
         f.close()
     else:
+        print(path)
         path = pathlib.Path(path)
+
         files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*.npy'))
         m, s = calculate_activation_statistics(files, model, batch_size,
+                                               dims, cuda)
+
+    return m, s
+
+
+def _compute_statistics_im(path, model, batch_size, dims, cuda):
+    if path.endswith('.npz'):
+        f = np.load(path)
+        m, s = f['mu'][:], f['sigma'][:]
+        f.close()
+    else:
+        print(path)
+        im = imread(path.astype(np.float32)
+        # images_3ch = []
+        # for im in images:
+        #     channels = np.stack((im,)*3, axis=-1).reshape(3,im.shape[1], im.shape[0])
+        #     images_3ch.append(channels)
+        # images = np.array(images_3ch)
+        im = im.transpose((0, 1, 3, 2))
+        m, s = calculate_activation_statistics(im, model, batch_size,
                                                dims, cuda)
 
     return m, s
@@ -262,9 +308,12 @@ if __name__ == '__main__':
     m1, s1 = _compute_statistics_of_path("./data", model, args.batch_size,
                                          args.dims, args.gpu)
 
+    path = pathlib.Path(args.path)
+    files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*.npy'))
+        
     for i in range(100):
         # fake
-        m2, s2 = _compute_statistics_of_path(args.path, model, args.batch_size,
+        m2, s2 = _compute_statistics_im(path[i], model, args.batch_size,
                                              args.dims, args.gpu)
 
         fid_value = calculate_frechet_distance(m1, s1, m2, s2)
