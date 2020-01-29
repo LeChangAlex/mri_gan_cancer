@@ -59,6 +59,28 @@ parser.add_argument('-c', '--gpu', default='', type=str,
                     help='GPU to use (leave blank for CPU only)')
 
 
+def generate(generator, step, alpha, mix_steps, resolution, n_gpu, latent_w=None):
+    if latent_w is None:
+        latent_w = [torch.randn((batch_size[step], dim_latent), device=device),
+                    torch.randn((batch_size[step], dim_latent), device=device)]
+        bs = batch_size[step]
+    else:
+        bs = latent_w[0].shape[0]
+
+    noise = []
+    for m in range(step + 1):
+        size_x = 25 * 2 ** m  # Due to the upsampling, size of noise will grow
+        size_y = 8 * 2 ** m
+        noise.append(torch.randn((bs, 1, size_x, size_y), device=device))
+
+    if args.n_gpu > 1:
+        fake_image = nn.parallel.data_parallel(generator, (latent_w, step, alpha, noise, mix_steps),
+                                               range(n_gpu))
+    else:
+        fake_image = generator(latent_w, step, alpha, noise, mix_steps)
+
+    return fake_image
+
 def get_activations(files, model, batch_size=50, dims=2048,
                     cuda=False, verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
@@ -279,14 +301,24 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
         
     # except ValueError:
     #     pass
-        
-    g_ema = Generator(
-        256, 512, 8, channel_multiplier=2
-    ).to(device)
-    g_ema.eval()
 
-    # generator.load_state_dict(ckpt['g'])
-    g_ema.load_state_dict(ckpt['g_ema'])
+
+    g_ema = StyleBased_Generator(8, 512, (25, 8)).to(device)
+
+
+
+    checkpoint = torch.load(path)
+    g_ema.load_state_dict(checkpoint['generator'])
+
+
+
+    # g_ema = Generator(
+    #     256, 512, 8, channel_multiplier=2
+    # ).to(device)
+    # g_ema.eval()
+    #
+    # # generator.load_state_dict(ckpt['g'])
+    # g_ema.load_state_dict(ckpt['g_ema'])
 
     # pred_arr = np.empty((356, dims))
     pred_arr = np.empty((356, 128))
