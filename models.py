@@ -107,86 +107,121 @@ class VariationalAutoEncoder(nn.Module):
 
         self.relu = nn.ReLU()
 
-        self.fc_mu = nn.Linear(256, 256)
-        self.fc_logvar = nn.Linear(256, 256)
+        self.fc_mu = nn.Linear(512, 512)
+        self.fc_logvar = nn.Linear(512, 512)
 
 
         self.encoder_layers = nn.ModuleList([])
         self.decoder_layers = nn.ModuleList([])
 
         # Encoder
-        # (800, 256, 1) -> (200, 64, 64)
+        # (800, 256, 1) -> (400, 128, 64)
         self.encoder_layers.append(
             nn.Sequential(AESConv2d(in_channels=1,
                                       out_channels=64,
                                       kernel_size=3,
                                       padding=1,
                                       stride=(2, 2)),
-                          nn.AvgPool2d((2, 2)),
                           nn.ReLU(),
 
                           nn.BatchNorm2d(num_features=64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
         )
-        # (200, 64, 64) -> (50, 16, 128)
+        # (400, 128, 64) -> (200, 64, 128)
         self.encoder_layers.append(
             nn.Sequential(AESConv2d(in_channels=64,
                                       out_channels=128,
                                       kernel_size=3,
                                       padding=1,
                                       stride=(2, 2)),
-                          nn.AvgPool2d((2, 2)),
                           nn.ReLU(),
 
                           nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             )
         )
-
-        # (50, 16, 128) -> (25, 16, 256)
-
+        # (200, 64, 128) -> (100, 32, 256)
         self.encoder_layers.append(
             nn.Sequential(AESConv2d(in_channels=128,
-                                      out_channels=256,
+                                    out_channels=256,
+                                    kernel_size=3,
+                                    padding=1,
+                                    stride=(2, 2)),
+                          nn.ReLU(),
+
+                          nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True)
+                          )
+        )
+
+        # (100, 32, 256) -> (50, 16, 512)
+
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=256,
+                                      out_channels=512,
                                       kernel_size=3,
                                       padding=1,
-                                      stride=(1, 1)),
-                          nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                                      stride=(2, 2)),
+                          nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
                                          track_running_stats=True),
-                        nn.AvgPool2d((2, 2)),
-
                         nn.ReLU()
             )
         )
 
+
+        # (50, 16, 512) -> (25, 8, 512)
         self.encoder_layers.append(
-            nn.Sequential(AESConv2d(in_channels=256,
-                                    out_channels=256,
+            nn.Sequential(AESConv2d(in_channels=512,
+                                      out_channels=512,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                          nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True),
+                        nn.ReLU()
+            )
+        )
+
+
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=512,
+                                    out_channels=512,
                                     kernel_size=(25, 8),
                                     padding=0,
                                     stride=(1, 1)),
-                          nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                          nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
                                          track_running_stats=True),
                           nn.ReLU()
-
                           )
 
         )
         # Decoder
         self.decoder_layers.append(nn.Sequential(
-            #  (1, 1, 256) -> (25, 8, 256)
-            nn.ConvTranspose2d(in_channels=256,
-                                out_channels=256,
+            #  (1, 1, 512) -> (25, 8, 512)
+            nn.ConvTranspose2d(in_channels=512,
+                                out_channels=512,
                                 kernel_size=(25, 8),
                                 padding=0,
                                 stride=(1, 1)),
-            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+            nn.BatchNorm2d(num_features=512, eps=1e-05, momentum=0.1, affine=True,
                            track_running_stats=True),
             nn.ReLU()
 
         ))
 
         self.decoder_layers.append(nn.Sequential(
-            #  (25, 8, 256) -> (50, 16, 128)
+            #  (25, 8, 512) -> (50, 16, 256)
+            nn.ConvTranspose2d(in_channels=512,
+                                out_channels=256,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=256, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+        self.decoder_layers.append(nn.Sequential(
+            #  (50, 16, 256) -> (100, 32, 128)
             nn.ConvTranspose2d(in_channels=256,
                                 out_channels=128,
                                 kernel_size=(4, 4),
@@ -198,8 +233,7 @@ class VariationalAutoEncoder(nn.Module):
         ))
 
         self.decoder_layers.append(nn.Sequential(
-            #  (50, 16, 128) -> (200, 64, 64)
-            nn.Upsample(scale_factor=2, mode="bilinear"),
+            #  (100, 32, 128) -> (200, 64, 64)
             nn.ConvTranspose2d(in_channels=128,
                                 out_channels=64,
                                 kernel_size=(4, 4),
@@ -209,23 +243,31 @@ class VariationalAutoEncoder(nn.Module):
             nn.BatchNorm2d(num_features=64, eps=1e-05, momentum=0.1, affine=True,
                            track_running_stats=True),
         ))
-
         self.decoder_layers.append(nn.Sequential(
-            #  (200, 64, 64) -> (800, 256, 16)
-            nn.Upsample(scale_factor=2, mode="bilinear"),
+            #  (200, 64, 64) -> (400, 128, 32)
             nn.ConvTranspose2d(in_channels=64,
-                                out_channels=8,
+                                out_channels=32,
                                 kernel_size=(4, 4),
                                 padding=1,
                                 stride=(2, 2)),
             nn.ReLU(),
-            nn.BatchNorm2d(num_features=8, eps=1e-05, momentum=0.1, affine=True,
+            nn.BatchNorm2d(num_features=32, eps=1e-05, momentum=0.1, affine=True,
                            track_running_stats=True),
         ))
 
         self.decoder_layers.append(nn.Sequential(
-            #  (200, 64, 64) -> (800, 256, 16)
-            nn.Conv2d(in_channels=8,
+            #  (400, 128, 32) -> (800, 256, 16)
+            nn.ConvTranspose2d(in_channels=32,
+                               out_channels=16,
+                               kernel_size=(4, 4),
+                               padding=1,
+                               stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=16, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+            nn.Conv2d(in_channels=16,
                                out_channels=1,
                                kernel_size=(3, 3),
                                padding=1,
@@ -251,15 +293,12 @@ class VariationalAutoEncoder(nn.Module):
 
 
         result = self.decode(z)
-
         return result, mu, logvar
 
     def encode(self, result):
 
         for i in range(len(self.encoder_layers)):
-
             result = self.encoder_layers[i](result)
-            # print(i, result.shape)
 
 
 
@@ -268,12 +307,222 @@ class VariationalAutoEncoder(nn.Module):
     def decode(self, result):
         for i in range(len(self.decoder_layers) - 1):
             result = self.decoder_layers[i](result)
-            # print(i, result.shape)
 
         result = self.decoder_layers[-1](result)
 
         return result
 
+
+class VariationalAutoEncoderLite(nn.Module):
+    def __init__(self, step):
+        super().__init__()
+
+        self.relu = nn.ReLU()
+
+        self.fc_mu = nn.Linear(128, 128)
+        self.fc_logvar = nn.Linear(128, 128)
+
+
+        self.encoder_layers = nn.ModuleList([])
+        self.decoder_layers = nn.ModuleList([])
+
+        # Encoder
+        # (800, 256, 1) -> (400, 128, 64)
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=1,
+                                      out_channels=64,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                          nn.ReLU(),
+
+                          nn.BatchNorm2d(num_features=64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+        )
+        # (400, 128, 64) -> (200, 64, 128)
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=64,
+                                      out_channels=128,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                          nn.ReLU(),
+
+                          nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+        )
+        # (200, 64, 128) -> (100, 32, 256)
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=128,
+                                    out_channels=128,
+                                    kernel_size=3,
+                                    padding=1,
+                                    stride=(2, 2)),
+                          nn.ReLU(),
+
+                          nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True)
+                          )
+        )
+
+        # (100, 32, 256) -> (50, 16, 512)
+
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=128,
+                                      out_channels=128,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                          nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True),
+                        nn.ReLU()
+            )
+        )
+
+
+        # (50, 16, 512) -> (25, 8, 512)
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=128,
+                                      out_channels=128,
+                                      kernel_size=3,
+                                      padding=1,
+                                      stride=(2, 2)),
+                          nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True),
+                        nn.ReLU()
+            )
+        )
+
+
+        self.encoder_layers.append(
+            nn.Sequential(AESConv2d(in_channels=128,
+                                    out_channels=128,
+                                    kernel_size=(25, 8),
+                                    padding=0,
+                                    stride=(1, 1)),
+                          nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                                         track_running_stats=True),
+                          nn.ReLU()
+                          )
+
+        )
+        # Decoder
+        self.decoder_layers.append(nn.Sequential(
+            #  (1, 1, 512) -> (25, 8, 512)
+            nn.ConvTranspose2d(in_channels=128,
+                                out_channels=128,
+                                kernel_size=(25, 8),
+                                padding=0,
+                                stride=(1, 1)),
+            nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+            nn.ReLU()
+
+        ))
+
+        self.decoder_layers.append(nn.Sequential(
+            #  (25, 8, 512) -> (50, 16, 256)
+            nn.ConvTranspose2d(in_channels=128,
+                                out_channels=128,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+        self.decoder_layers.append(nn.Sequential(
+            #  (50, 16, 256) -> (100, 32, 128)
+            nn.ConvTranspose2d(in_channels=128,
+                                out_channels=128,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=128, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+        self.decoder_layers.append(nn.Sequential(
+            #  (100, 32, 128) -> (200, 64, 64)
+            nn.ConvTranspose2d(in_channels=128,
+                                out_channels=64,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=64, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+            #  (200, 64, 64) -> (400, 128, 32)
+            nn.ConvTranspose2d(in_channels=64,
+                                out_channels=32,
+                                kernel_size=(4, 4),
+                                padding=1,
+                                stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=32, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+
+        self.decoder_layers.append(nn.Sequential(
+            #  (400, 128, 32) -> (800, 256, 16)
+            nn.ConvTranspose2d(in_channels=32,
+                               out_channels=16,
+                               kernel_size=(4, 4),
+                               padding=1,
+                               stride=(2, 2)),
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=16, eps=1e-05, momentum=0.1, affine=True,
+                           track_running_stats=True),
+        ))
+        self.decoder_layers.append(nn.Sequential(
+            nn.Conv2d(in_channels=16,
+                               out_channels=1,
+                               kernel_size=(3, 3),
+                               padding=1,
+                               stride=(1, 1)),
+
+        ))
+
+
+    def reparameterize(self, mu, logvar):
+        stds = (0.5 * logvar).exp()
+        epsilon = torch.randn(*mu.size())
+        if mu.is_cuda:
+            stds, epsilon = stds.cuda(), epsilon.cuda()
+        latents = epsilon * stds + mu
+        return latents
+
+
+    def forward(self, *input):
+        result = input[0]
+        z = self.encode(result).squeeze(2).squeeze(2)
+        mu, logvar = self.fc_mu(z), self.fc_logvar(z)
+        z = self.reparameterize(mu, logvar).unsqueeze(2).unsqueeze(2)
+
+
+        result = self.decode(z)
+        return result, mu, logvar
+
+    def encode(self, result):
+
+        for i in range(len(self.encoder_layers)):
+            result = self.encoder_layers[i](result)
+
+
+
+        return result
+
+    def decode(self, result):
+        for i in range(len(self.decoder_layers) - 1):
+            result = self.decoder_layers[i](result)
+
+        result = self.decoder_layers[-1](result)
+
+        return result
 
 class AutoEncoder(nn.Module):
     def __init__(self, step):
