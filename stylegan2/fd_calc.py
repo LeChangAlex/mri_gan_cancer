@@ -26,13 +26,13 @@ import os
 import pathlib
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
-
+import random
 import numpy as np
 from scipy import linalg
 from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
 
-from train import *
+# from train import *
 
 try:
     from tqdm import tqdm
@@ -41,7 +41,7 @@ except ImportError:
     def tqdm(x): return x
 
 from inception import InceptionV3
-from model import Generator
+# from model import Generator
 from models2 import *
 
 
@@ -292,8 +292,8 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
 
     model = model.to(device)
     print('load model:', path)
-        
-    ckpt = torch.load(path, map_location=device)
+
+
 
     # try:
     #     ckpt_name = os.path.basename(apth)
@@ -325,14 +325,18 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
 
 
     for i in range(0, 356, args.batch_size):
-        print(i)
         start = i
         end = min(356, i + args.batch_size)
 
-        noise = mixing_noise(end - start, 512, 0.9, device)
+        # noise = mixing_noise(end - start, 512, 0.9, device)
 
         with torch.no_grad():
-            fake_img, _ = g_ema(noise)
+            latent_w = [torch.randn((end - start, 512), device=device),
+                        torch.randn((end - start, 512), device=device)]
+
+            fake_img = generate(g_ema, 5, 1, list(range(random.randint(0, 10))), (800, 256), 1, latent_w)
+
+            # fake_img, _ = g_ema(noise)
             # batch = torch.from_numpy(batch).type(torch.FloatTensor)
             
             # fake_img = fake_img.repeat(1, 3, 1, 1)
@@ -428,13 +432,13 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-
-
+    args.n_gpu = 1
+    device = torch.device('cuda')
     # block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[args.dims]
 
     # model = InceptionV3([block_idx])
 
-    checkpoint = torch.load("trained_vae.pth")
+    checkpoint = torch.load("../trained_vae.pth")
     
     model = VariationalAutoEncoderLite(5)
     model.load_state_dict(checkpoint['ae'])
@@ -448,7 +452,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     # real
-    m1, s1 = _compute_statistics_of_path("../data/wbmri_medium", model, args.batch_size,
+    m1, s1 = _compute_statistics_of_path("/home/viniths/PycharmProjects/mri_gan_cancer/mri_gan_cancer/wbmri_slices_medium", model, args.batch_size,
                                          args.dims, args.gpu)
 
 
@@ -456,7 +460,7 @@ if __name__ == '__main__':
 
 
     path = pathlib.Path(args.path)
-    files = sorted(list(path.glob('*.pt')))[::-1]
+    files = sorted(list(path.glob('*.pth')))[::-1]
     # files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*.npy'))
     
 
