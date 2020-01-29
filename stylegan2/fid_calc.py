@@ -88,18 +88,19 @@ def get_activations(files, model, batch_size=50, dims=2048,
                'Setting batch size to data size'))
         batch_size = len(files)
 
-    n_batches = len(files) // batch_size
-    n_used_imgs = n_batches * batch_size
+    # n_batches = len(files) // batch_size
+    n_used_imgs = 356
 
     pred_arr = np.empty((n_used_imgs, dims))
 
-    for i in range(n_batches):
+    for i in range(0, n_used_imgs, args.batch_size):
         if verbose:
             print('\rPropagating batch %d/%d' % (i + 1, n_batches),
                   end='', flush=True)
 
-        start = i * batch_size
-        end = start + batch_size
+        start = i
+        end = min(356, start + batch_size)
+
 
         images = [np.load(str(f)).astype(np.float32)
                            for f in files[start:end]]
@@ -114,7 +115,6 @@ def get_activations(files, model, batch_size=50, dims=2048,
         images = np.array(images_3ch)
         images = images.transpose((0, 1, 3, 2))
 
-        print(images.shape)
         # # Reshape to (n_images, 1, height, width)
         # images = images.transpose((0, 1, 1, 2))
         # images /= 255
@@ -130,7 +130,7 @@ def get_activations(files, model, batch_size=50, dims=2048,
         if pred.shape[2] != 1 or pred.shape[3] != 1:
             pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-        pred_arr[start:end] = pred.cpu().data.numpy().reshape(batch_size, -1)
+        pred_arr[start:end] = pred.cpu().data.numpy().reshape(end - start, -1)
 
     if verbose:
         print(' done')
@@ -260,7 +260,9 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
 def _compute_statistics_im(path, model, batch_size, dims, cuda):
 
 
+
     device=torch.device('cuda')
+    model = model.to(device)
     print('load model:', path)
         
     ckpt = torch.load(path, map_location=device)
@@ -284,17 +286,19 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
     pred_arr = np.empty((356, dims))
 
     for i in range(0, 356, args.batch_size):
-
+        print(i)
         start = i
         end = min(356, i + args.batch_size)
 
-        noise = mixing_noise(args.batch_size, 512, 0.9, device)
-        
+        noise = mixing_noise(end - start, 512, 0.9, device)
+
         with torch.no_grad():
             fake_img, _ = g_ema(noise)
         # batch = torch.from_numpy(batch).type(torch.FloatTensor)
         
-        pred = model(batch)[0]
+        fake_img = fake_img.repeat(1, 3, 1, 1)
+
+        pred = model(fake_img)[0]
 
         # If model output is not scalar, apply global spatial average pooling.
         # This happens if you choose a dimensionality not equal 2048.
@@ -395,15 +399,15 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     # real
-    # m1, s1 = _compute_statistics_of_path("./data/wbmri_medium", model, args.batch_size,
-    #                                      args.dims, args.gpu)
+    m1, s1 = _compute_statistics_of_path("../data/wbmri_medium", model, args.batch_size,
+                                         args.dims, args.gpu)
 
 
 
 
 
     path = pathlib.Path(args.path)
-    files = list(path.glob('*.pt'))
+    files = sorted(list(path.glob('*.pt')))[::-1]
     # files = list(path.glob('*.jpg')) + list(path.glob('*.png')) + list(path.glob('*.npy'))
     
 
