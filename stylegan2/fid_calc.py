@@ -32,6 +32,8 @@ from scipy import linalg
 from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
 
+from train import *
+
 try:
     from tqdm import tqdm
 except ImportError:
@@ -39,7 +41,7 @@ except ImportError:
     def tqdm(x): return x
 
 from inception import InceptionV3
-from stylegan2.model import Generator
+from model import Generator
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--path', type=str,
@@ -258,10 +260,10 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
 def _compute_statistics_im(path, model, batch_size, dims, cuda):
 
 
-    # device=torch.device('cuda')
+    device=torch.device('cuda')
     print('load model:', path)
         
-    ckpt = torch.load(path, map_location=torch.device('cpu'))
+    ckpt = torch.load(path, map_location=device)
 
     # try:
     #     ckpt_name = os.path.basename(apth)
@@ -271,23 +273,27 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
     #     pass
         
     g_ema = Generator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
+        256, 512, 8, channel_multiplier=2
     ).to(device)
     g_ema.eval()
 
     # generator.load_state_dict(ckpt['g'])
     # discriminator.load_state_dict(ckpt['d'])
     g_ema.load_state_dict(ckpt['g_ema'])
-    pred_arr = np.empty((360, dims))
 
-    for i in range(360):
+    pred_arr = np.empty((356, dims))
 
-        noise = mixing_noise(args.batch_size, 512, 0.9, 'cpu')
-        fake_img, _ = generator(noise)
+    for i in range(0, 356, args.batch_size):
+
+        start = i
+        end = min(356, i + args.batch_size)
+
+        noise = mixing_noise(args.batch_size, 512, 0.9, device)
+        
+        with torch.no_grad():
+            fake_img, _ = g_ema(noise)
         # batch = torch.from_numpy(batch).type(torch.FloatTensor)
-        if cuda:
-            batch = batch.cuda()
-
+        
         pred = model(batch)[0]
 
         # If model output is not scalar, apply global spatial average pooling.
@@ -295,7 +301,7 @@ def _compute_statistics_im(path, model, batch_size, dims, cuda):
         if pred.shape[2] != 1 or pred.shape[3] != 1:
             pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-        pred_arr[i] = pred.cpu().data.numpy().reshape(1, -1)
+        pred_arr[start:end] = pred.cpu().data.numpy().reshape(-1, dims)
 
 
     # # if path.endswith('.npz'):
@@ -403,7 +409,7 @@ if __name__ == '__main__':
 
 
     
-    for i in range(100):
+    for i in range(len(files)):
         # fake
         m2, s2 = _compute_statistics_im(files[i], model, args.batch_size,
                                              args.dims, args.gpu)
@@ -411,10 +417,10 @@ if __name__ == '__main__':
         fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
 
-        print(i, fid_value)
+        print(files[i], fid_value)
 
     # fid_value = calculate_fid_given_paths(args.path,
     #                                       args.batch_size,
     #                                       args.gpu != '',
     #                                       args.dims)
-    print('FID: ', fid_value)
+    # print('FID: ', fid_value)
